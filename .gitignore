@@ -1,0 +1,10 @@
+/env
+notes.txt
+instruction_templates.py
+app_description.txt
+.env
+test*
+*.db
+*.log
+*.session
+*.pyc
