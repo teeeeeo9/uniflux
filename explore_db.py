@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 import sqlite3
 import json
+import sys
+from config import DATABASE
 from datetime import datetime
 
 # Database file path
-DATABASE = 'sources.db'
+conn = sqlite3.connect(DATABASE)
+conn.row_factory = sqlite3.Row  # Return rows as dictionaries
 
 def get_db_connection():
     """Create and return a database connection"""
     conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+    conn.row_factory = sqlite3.Row
     return conn
 
 def get_table_info():

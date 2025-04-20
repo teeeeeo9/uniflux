@@ -12,6 +12,7 @@ from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from instruction_templates import INSTRUCTIONS, DEFAULT_INSTRUCTION
 import litellm
+from config import DATABASE, LOG_FILE
 
 # Custom JSON formatter for logs
 def format_json(obj):
@@ -20,21 +21,27 @@ def format_json(obj):
         return "\n" + json.dumps(obj, indent=2)
     return str(obj)
 
-# Configure logging with full detail
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(funcName)s() - %(message)s',
-    handlers=[
-        logging.FileHandler("./log.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
+# Configure module-specific logger
+logger = logging.getLogger('parser')
+logger.setLevel(logging.INFO)  # Set module level to INFO
+
+# Check if the logger already has handlers to avoid duplicate handlers
+if not logger.handlers:
+    # Create file handler that logs to the same file
+    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s'))
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s'))
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
 logger.info("Parser module initializing")
 
 # Database file path
-DATABASE = 'sources.db'
 logger.info(f"Database path: {DATABASE}")
 
 class Article(BaseModel):
@@ -131,28 +138,28 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
     Returns:
         A dictionary containing the extracted content
     """
-    logging.getLogger(__name__).info(f"Extracting summary from URL: {url}")
-    logging.getLogger(__name__).info(f"Using instruction type: {instruction_type}")
-    logging.getLogger(__name__).info(f"Debug mode: {debug_mode}")
+    logger.info(f"Extracting summary from URL: {url}")
+    logger.info(f"Using instruction type: {instruction_type}")
+    logger.info(f"Debug mode: {debug_mode}")
     
     # Enable debug mode if requested
     if debug_mode:
         litellm._turn_on_debug()
-        logging.getLogger(__name__).info("LiteLLM debug mode enabled")
+        logger.info("LiteLLM debug mode enabled")
     
     # Get the appropriate instruction
     if instruction_type not in INSTRUCTIONS:
-        logging.getLogger(__name__).warning(f"Instruction type '{instruction_type}' not found. Using default.")
+        logger.warning(f"Instruction type '{instruction_type}' not found. Using default.")
         instruction_text = INSTRUCTIONS[DEFAULT_INSTRUCTION]
     else:
         instruction_text = INSTRUCTIONS[instruction_type]
     
     # Format the instruction with the URL
     instruction_text = instruction_text.format(url)
-    logging.getLogger(__name__).info(f"Using instruction: {instruction_text}")
+    logger.info(f"Using instruction: {instruction_text}")
 
     # 1. Define the LLM extraction strategy - keeping exact same settings
-    logging.getLogger(__name__).info("Configuring LLM extraction strategy")
+    logger.info("Configuring LLM extraction strategy")
     llm_strategy = LLMExtractionStrategy(
         llm_config = LLMConfig(provider="gemini/gemini-2.0-flash", api_token=os.getenv('GEMINI_API_KEY')),
         # overlap_rate=0.1,
@@ -167,7 +174,7 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
     )
 
     # 2. Build the crawler config
-    logging.getLogger(__name__).info("Configuring crawler run config")
+    logger.info("Configuring crawler run config")
     crawl_config = CrawlerRunConfig(
         extraction_strategy=llm_strategy,
         cache_mode=CacheMode.BYPASS,
@@ -175,17 +182,17 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
     )
 
     # 3. Create a browser config
-    logging.getLogger(__name__).info("Configuring browser")
+    logger.info("Configuring browser")
     browser_cfg = BrowserConfig(
         headless=True,
         browser_type="firefox",
         )
 
     try:
-        logging.getLogger(__name__).info(f"Starting crawl for URL: {url}")
+        logger.info(f"Starting crawl for URL: {url}")
         async with AsyncWebCrawler(config=browser_cfg) as crawler:
             # 4. Crawl the page
-            logging.getLogger(__name__).info("Executing crawler run")
+            logger.info("Executing crawler run")
             result = await crawler.arun(
                 url=url,
                 config=crawl_config
@@ -193,9 +200,9 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
 
             if result.success:
                 # 5. Return the extracted content
-                logging.getLogger(__name__).info(f"Crawl successful for URL: {url}")
+                logger.info(f"Crawl successful for URL: {url}")
                 data = json.loads(result.extracted_content)
-                logging.getLogger(__name__).info(f"Extracted content: {format_json(data)}")
+                logger.info(f"Extracted content: {format_json(data)}")
                 
                 # Add the URL to the result for use in the processing function
                 if isinstance(data, dict):
@@ -208,12 +215,12 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                 llm_strategy.show_usage()
                 return data
             else:
-                logging.getLogger(__name__).error(f"Crawl failed for URL: {url}")
-                logging.getLogger(__name__).error(f"Error message: {result.error_message}")
+                logger.error(f"Crawl failed for URL: {url}")
+                logger.error(f"Error message: {result.error_message}")
                 return {"error": result.error_message}
     except Exception as e:
-        logging.getLogger(__name__).error(f"Exception during crawl for URL {url}: {str(e)}")
-        logging.getLogger(__name__).error(traceback.format_exc())
+        logger.error(f"Exception during crawl for URL {url}: {str(e)}")
+        logger.error(traceback.format_exc())
         return {"error": str(e)}
 
 def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
@@ -310,7 +317,7 @@ async def extract_with_browser_retry(url: str, instruction_type: str, debug_mode
     Returns:
         The extraction result
     """
-    logging.getLogger(__name__).info(f"Attempting extraction with browser retry for URL: {url}")
+    logger.info(f"Attempting extraction with browser retry for URL: {url}")
     
     max_browser_retries = 3
     for retry_num in range(max_browser_retries):
@@ -320,24 +327,24 @@ async def extract_with_browser_retry(url: str, instruction_type: str, debug_mode
             # Check for the specific browser error
             if isinstance(result, dict) and isinstance(result.get("error"), str) and "BrowserType.launch: Target page, context or browser has been closed" in result.get("error", ""):
                 if retry_num < max_browser_retries - 1:
-                    logging.getLogger(__name__).warning(f"Detected browser closed error, retry {retry_num+1}/{max_browser_retries}, waiting 5 seconds before retrying")
+                    logger.warning(f"Detected browser closed error, retry {retry_num+1}/{max_browser_retries}, waiting 5 seconds before retrying")
                     time.sleep(10)
                     continue
                 else:
-                    logging.getLogger(__name__).error(f"Exhausted all {max_browser_retries} browser retries for URL: {url}")
+                    logger.error(f"Exhausted all {max_browser_retries} browser retries for URL: {url}")
             
             # If we reach here, either no error or we're out of retries
             return result
             
         except Exception as e:
             if retry_num < max_browser_retries - 1:
-                logging.getLogger(__name__).error(f"Exception during extraction retry {retry_num+1}/{max_browser_retries}: {str(e)}")
-                logging.getLogger(__name__).error(traceback.format_exc())
-                logging.getLogger(__name__).info(f"Waiting 5 seconds before retry attempt {retry_num+2}")
+                logger.error(f"Exception during extraction retry {retry_num+1}/{max_browser_retries}: {str(e)}")
+                logger.error(traceback.format_exc())
+                logger.info(f"Waiting 5 seconds before retry attempt {retry_num+2}")
                 time.sleep(5)
             else:
-                logging.getLogger(__name__).error(f"Exception on final browser retry attempt: {str(e)}")
-                logging.getLogger(__name__).error(traceback.format_exc())
+                logger.error(f"Exception on final browser retry attempt: {str(e)}")
+                logger.error(traceback.format_exc())
                 return {"error": str(e)}
     
     # This should not happen but just in case
@@ -358,79 +365,79 @@ async def extract_summary(url: str, enable_retries: bool = False, debug_mode: bo
         - success: 1 if successful, 0 if error
         - content: The extracted content as a string
     """
-    logging.getLogger(__name__).info(f"Starting extract_summary for URL: {url}")
-    logging.getLogger(__name__).info(f"Retry enabled: {enable_retries}, Debug mode: {debug_mode}")
+    logger.info(f"Starting extract_summary for URL: {url}")
+    logger.info(f"Retry enabled: {enable_retries}, Debug mode: {debug_mode}")
     
     # First, try to get the summary from the database
     db_result = get_summary_from_db(url)
     if db_result:
-        logging.getLogger(__name__).info(f"Found existing summary in database for URL: {url}")
+        logger.info(f"Found existing summary in database for URL: {url}")
         if "content" in db_result and db_result["content"]:
             return {"success": 1, "content": db_result["content"]}
         else:
-            logging.getLogger(__name__).warning(f"Database entry for {url} has invalid format")
+            logger.warning(f"Database entry for {url} has invalid format")
             return {"success": 0, "content": ""}
     
     # If not in database, proceed with web extraction
     instruction_type = 'summary'
-    logging.getLogger(__name__).info(f"No summary in database, proceeding with web extraction using instruction type: {instruction_type}")
+    logger.info(f"No summary in database, proceeding with web extraction using instruction type: {instruction_type}")
     
     # If retries are not enabled, just make a single attempt with browser retry
     if not enable_retries:
         try:
-            logging.getLogger(__name__).info(f"Making extraction attempt for URL: {url}")
+            logger.info(f"Making extraction attempt for URL: {url}")
             # Use the new wrapper function instead of direct call
             result = await extract_with_browser_retry(url, instruction_type, debug_mode)
-            logging.getLogger(__name__).info(f"Extraction completed for URL: {url}")
-            logging.getLogger(__name__).info(f"Extraction result: {format_json(result)}")
+            logger.info(f"Extraction completed for URL: {url}")
+            logger.info(f"Extraction result: {format_json(result)}")
             
             # Process the result to extract content
             processed_result = process_extraction_result(result, url)
-            logging.getLogger(__name__).info(f"Processed result: {format_json(processed_result)}")
+            logger.info(f"Processed result: {format_json(processed_result)}")
             return processed_result
             
         except Exception as e:
-            logging.getLogger(__name__).error(f"Exception during extraction for URL {url}: {str(e)}")
-            logging.getLogger(__name__).error(traceback.format_exc())
+            logger.error(f"Exception during extraction for URL {url}: {str(e)}")
+            logger.error(traceback.format_exc())
             return {"success": 0, "content": ""}
     
     # With retries enabled, use the retry logic
     max_attempts = 5
     backoff_time = 1  # Initial backoff time in seconds
     
-    logging.getLogger(__name__).info(f"Making up to {max_attempts} extraction attempts for URL: {url}")
+    logger.info(f"Making up to {max_attempts} extraction attempts for URL: {url}")
     
     for attempt in range(max_attempts):
         try:
-            logging.getLogger(__name__).info(f"Attempt {attempt+1} of {max_attempts} to extract summary from {url}")
+            logger.info(f"Attempt {attempt+1} of {max_attempts} to extract summary from {url}")
             # Use the new wrapper function instead of direct call
             result = await extract_with_browser_retry(url, instruction_type, debug_mode)
-            logging.getLogger(__name__).info(f"Extraction result on attempt {attempt+1}: {format_json(result)}")
+            logger.info(f"Extraction result on attempt {attempt+1}: {format_json(result)}")
             
             # Process the result
             processed_result = process_extraction_result(result, url)
             
             # If successful, return the processed result
             if processed_result["success"] == 1 and processed_result["content"]:
-                logging.getLogger(__name__).info(f"Successfully extracted content on attempt {attempt+1}")
+                logger.info(f"Successfully extracted content on attempt {attempt+1}")
                 return processed_result
                 
             # If we got a result but it was not valid, retry if we have attempts left
             if attempt < max_attempts - 1:
-                logging.getLogger(__name__).info(f"Invalid result on attempt {attempt+1}, retrying in {backoff_time} seconds")
+                logger.info(f"Invalid result on attempt {attempt+1}, retrying in {backoff_time} seconds")
                 time.sleep(backoff_time)
                 backoff_time *= 1.5  # Exponential backoff
                 
         except Exception as e:
-            logging.getLogger(__name__).error(f"Exception on attempt {attempt+1}: {str(e)}")
-            logging.getLogger(__name__).error(traceback.format_exc())
+            logger.error(f"Exception on attempt {attempt+1}: {str(e)}")
+            logger.error(traceback.format_exc())
             if attempt < max_attempts - 1:
-                logging.getLogger(__name__).info(f"Retrying in {backoff_time} seconds")
+                logger.info(f"Retrying in {backoff_time} seconds")
                 time.sleep(backoff_time)
                 backoff_time *= 1.5
     
     # If we've exhausted all attempts
-    logging.getLogger(__name__).error(f"Failed to extract content after {max_attempts} attempts for URL: {url}")
+    logger.error(f"Failed to extract content after {max_attempts} attempts for URL: {url}")
     return {"success": 0, "content": ""}
 
 if __name__ == "__main__":

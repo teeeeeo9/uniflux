@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import json
 import re  # Import the regular expression module
+from config import DATABASE, LOG_FILE
 
 
 load_dotenv()
@@ -23,7 +24,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("log.log"),
+        logging.FileHandler(LOG_FILE),
         logging.StreamHandler()
     ]
 )
@@ -41,8 +42,6 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 
 app = Flask(__name__)
 CORS(app)
-
-DATABASE = 'sources.db'
 
 def get_db():
     conn = sqlite3.connect(DATABASE)

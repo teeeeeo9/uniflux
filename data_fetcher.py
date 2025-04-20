@@ -11,17 +11,28 @@ from telethon.tl.functions.messages import GetHistoryRequest
 from dotenv import load_dotenv
 import telethon.errors
 from parser import extract_summary  # Import only the extraction function, get_summary_from_db is used internally
+from config import DATABASE, LOG_FILE, TELEGRAM_SESSION
 
-# Configure logging with full detail
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(funcName)s() - %(message)s',
-    handlers=[
-        logging.FileHandler("log.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
+# Configure module-specific logger
+logger = logging.getLogger('data_fetcher')
+logger.setLevel(logging.DEBUG)  # Set module level to DEBUG
+
+# Check if the logger already has handlers to avoid duplicate handlers
+if not logger.handlers:
+    # Create file handler that logs to the same file
+    file_handler = logging.FileHandler(LOG_FILE)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s'))
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s'))
+    
+    # Add handlers to logger
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+# Now the logger is configured specifically for this module with DEBUG level
+logger.info("Data fetcher module initializing")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -34,9 +45,8 @@ phone_number = os.getenv("TELEGRAM_PHONE_NUMBER")
 logger.info(f"Telegram credentials loaded: API ID: {api_id}, Phone: {phone_number}")
 
 # Configuration
-messages_limit = 10  # Number of messages to fetch per request
-session_file = "telegram_session"
-DATABASE = 'sources.db'
+messages_limit = 100  # Number of messages to fetch per request
+session_file = TELEGRAM_SESSION
 logger.info(f"Configuration set: messages_limit={messages_limit}, session_file={session_file}, database={DATABASE}")
 
 def get_db_connection():

@@ -1,3 +1,26 @@
+import sqlite3
+import json
+import asyncio
+import logging
+import sys
+from config import DATABASE, LOG_FILE
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+def get_db_connection():
+    """Create a connection to the SQLite database"""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 async def process_and_aggregate_news(messages_history):
     """
