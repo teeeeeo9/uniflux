@@ -114,6 +114,28 @@ def get_oldest_and_newest():
         if newest:
             print(f"Newest record: {newest['url']}, Updated: {newest['updated_at']}")
 
+def delete_message_by_id():
+    """Delete a message record with the specified ID"""
+    message_id=1
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                print(f"Successfully deleted message with ID: {message_id}")
+                return True
+            else:
+                print(f"No message found with ID: {message_id}")
+                return False
+    except sqlite3.Error as e:
+        print(f"Database error while deleting message: {e}")
+        return False
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
 if __name__ == "__main__":
     print("Database Explorer for link_summaries")
     
@@ -128,7 +150,8 @@ if __name__ == "__main__":
         # get_oldest_and_newest()
         
         # Show most recent records
-        get_recent_records(10)
+        # get_recent_records(10)
+        delete_message_by_id()
         
         # # Allow interactive search
         # search_term = input("\nEnter a term to search in URLs (or press Enter to skip): ")

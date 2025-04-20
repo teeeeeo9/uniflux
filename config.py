@@ -23,7 +23,7 @@ else:  # development or other environments
 if ENV == 'production':
     TELEGRAM_SESSION = 'telegram_session'
 else:  # development or other environments
-    TELEGRAM_SESSION = 'telegram_session_dev'
+    TELEGRAM_SESSION = 'telegram_session'
 
 # Print configuration for debugging purposes
 if __name__ == '__main__':

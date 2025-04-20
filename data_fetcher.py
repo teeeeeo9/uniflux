@@ -109,7 +109,7 @@ def serialize_message(message, channel_url):
     logger.debug(f"Serialized message data: {message_data}")
     return message_data
 
-async def fetch_channel_messages_since(client, entity, since_date, channel_url):
+async def fetch_channel_messages_since(client, entity, since_date, channel_url, min_id=0):
     """Fetches messages from a Telegram channel since a given date.
 
     Args:
@@ -117,11 +117,16 @@ async def fetch_channel_messages_since(client, entity, since_date, channel_url):
         entity: The Telegram channel entity.
         since_date: The datetime object representing the starting point.
         channel_url: The URL of the channel.
+        min_id: The minimum message ID to fetch (exclusive). Messages with IDs <= min_id will be skipped.
+               This is used to avoid fetching messages we already have.
 
     Returns:
         A list of serialized message objects. Returns an empty list if there's an issue.
     """
     logger.info(f"Fetching messages from {channel_url} since {since_date.isoformat()}")
+    if min_id:
+        logger.info(f"Starting from message ID > {min_id}")
+    
     try:
         all_messages = []
         offset_id = 0
@@ -138,7 +143,7 @@ async def fetch_channel_messages_since(client, entity, since_date, channel_url):
                 add_offset=0,
                 limit=messages_limit,
                 max_id=0,
-                min_id=0,
+                min_id=int(min_id) if min_id else 0,  # Only fetch messages with ID > min_id
                 hash=0,
                 # limit=2
             ))
@@ -280,6 +285,39 @@ def message_exists_in_db(source_type, channel_id, message_id):
         logger.error(traceback.format_exc())
         return False, None
 
+def get_latest_message_id_for_channel(source_type, channel_id):
+    """
+    Get the latest (highest) message ID for a given channel from the database.
+    
+    Args:
+        source_type: The type of source (e.g., 'telegram')
+        channel_id: The channel identifier
+        
+    Returns:
+        The latest message ID as a string or None if no messages are found
+    """
+    logger.debug(f"Getting latest message ID for channel: {source_type}, {channel_id}")
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Use CAST to ensure numeric comparison of message_id
+            cursor.execute(
+                "SELECT message_id FROM messages WHERE source_type = ? AND channel_id = ? ORDER BY CAST(message_id AS INTEGER) DESC LIMIT 1",
+                (source_type, channel_id)
+            )
+            result = cursor.fetchone()
+            if result:
+                message_id = result['message_id']
+                logger.info(f"Latest message ID for {channel_id}: {message_id}")
+                return message_id
+            else:
+                logger.info(f"No previous messages found for {channel_id}")
+                return None
+    except Exception as e:
+        logger.error(f"Error getting latest message ID: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
 def save_message_to_db(message_data):
     """
     Save a message to the database.
@@ -385,9 +423,21 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             logger.debug(f'Entity for {channel_identifier}: {entity}')
             
             if entity:
+                # Get the latest message ID from the database for this channel
+                latest_message_id = get_latest_message_id_for_channel("telegram", channel_identifier)
+                
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
-                # messages = await fetch_channel_messages_since(client, entity, one_day_ago_utc, original_identifier)
-                messages = await fetch_channel_messages_since(client, entity, since_date_utc, original_identifier)
+                
+                if latest_message_id:
+                    logger.info(f'Found previous messages for this channel. Latest message ID: {latest_message_id}')
+                    # Fetch messages with ID > latest_message_id
+                    messages = await fetch_channel_messages_since(
+                        client, entity, since_date_utc, original_identifier, min_id=latest_message_id
+                    )
+                else:
+                    logger.info(f'No previous messages found for this channel. Fetching from scratch.')
+                    # Fetch all messages in the time range
+                    messages = await fetch_channel_messages_since(client, entity, since_date_utc, original_identifier)
                 
                 message_ids = []
                 
@@ -473,7 +523,7 @@ async def main():
     logger.info(f"Channels to fetch: {channels}")
     
     # Time range: "1d" for 1 day or "1w" for 1 week
-    time_range = "1w"
+    time_range = "1d"
     
     # Fetch messages from the channels, optionally enabling retries or debug mode
     news_data = await fetch_telegram_messages(channels, time_range=time_range, enable_retries=False, debug_mode=False)
