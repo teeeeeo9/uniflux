@@ -4,19 +4,20 @@ import os
 import sqlite3
 import logging
 import sys
+import json
 from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient
 from telethon.tl.functions.messages import GetHistoryRequest
 from dotenv import load_dotenv
 import telethon.errors
-from parser import extract_summary  # Import the extraction function
+from parser import extract_summary  # Import only the extraction function, get_summary_from_db is used internally
 
 # Configure logging with full detail
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(filename)s:%(lineno)d - %(funcName)s() - %(message)s',
     handlers=[
-        logging.FileHandler("telegram_fetcher.log"),
+        logging.FileHandler("log.log"),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -33,7 +34,7 @@ phone_number = os.getenv("TELEGRAM_PHONE_NUMBER")
 logger.info(f"Telegram credentials loaded: API ID: {api_id}, Phone: {phone_number}")
 
 # Configuration
-messages_limit = 100  # Number of messages to fetch per request
+messages_limit = 10  # Number of messages to fetch per request
 session_file = "telegram_session"
 DATABASE = 'sources.db'
 logger.info(f"Configuration set: messages_limit={messages_limit}, session_file={session_file}, database={DATABASE}")
@@ -80,12 +81,18 @@ def serialize_message(message, channel_url):
     """
     logger.debug(f"Serializing message ID: {message.id} from channel: {channel_url}")
     links = extract_links_from_entities(message)
+    
+    # Extract channel ID from URL
+    channel_id = channel_url.split('/')[-1] if channel_url.startswith('https://t.me/') else channel_url
+    
     message_data = {
         "internal_id": None,  # Will be populated later if stored in DB
-        "telegram_id": message.id,
-        "channel_url": channel_url,
+        "source_url": channel_url,
+        "source_type": "telegram",
+        "channel_id": channel_id,
+        "message_id": str(message.id),
         "date": message.date.isoformat() if message.date else None,
-        "text": message.message,
+        "data": message.message,
         "links": links,
         "link_summaries": {}  # Initialize empty dictionary for link summaries
     }
@@ -122,7 +129,8 @@ async def fetch_channel_messages_since(client, entity, since_date, channel_url):
                 limit=messages_limit,
                 max_id=0,
                 min_id=0,
-                hash=0
+                hash=0,
+                # limit=2
             ))
             
             if not history.messages:
@@ -232,67 +240,99 @@ async def authorize_client():
         logger.error(traceback.format_exc())
         return None
 
-def get_summary_from_db(url):
+def message_exists_in_db(source_type, channel_id, message_id):
     """
-    Check if a URL's summary exists in the database and return it if found
+    Check if a message already exists in the database.
     
     Args:
-        url: The URL to look up
+        source_type: The type of source (e.g., 'telegram')
+        channel_id: The channel identifier
+        message_id: The message identifier
         
     Returns:
-        The summary content or None if not found
+        Tuple of (exists, id) where exists is a boolean and id is the message ID if it exists, None otherwise
     """
-    logger.debug(f"Checking database for summary of URL: {url}")
+    logger.debug(f"Checking if message exists: {source_type}, {channel_id}, {message_id}")
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT summary_content FROM link_summaries WHERE url = ?", (url,))
-        result = cursor.fetchone()
-        
-        if result:
-            logger.info(f"Summary for {url} found in database")
-            return result["summary_content"]
-        
-        logger.debug(f"No summary found in database for {url}")
-        return None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id FROM messages WHERE source_type = ? AND channel_id = ? AND message_id = ?",
+                (source_type, channel_id, message_id)
+            )
+            result = cursor.fetchone()
+            exists = result is not None
+            msg_id = result['id'] if exists else None
+            logger.debug(f"Message exists: {exists}, ID: {msg_id}")
+            return exists, msg_id
     except Exception as e:
-        logger.error(f"Error retrieving summary from database: {str(e)}")
+        logger.error(f"Error checking if message exists: {e}")
+        logger.error(traceback.format_exc())
+        return False, None
+
+def save_message_to_db(message_data):
+    """
+    Save a message to the database.
+    
+    Args:
+        message_data: A dictionary containing message data with keys:
+            - source_url: URL of the source
+            - source_type: Type of source (e.g., 'telegram')
+            - channel_id: Channel identifier
+            - message_id: Message identifier
+            - date: Date of the message as ISO string
+            - data: Text content of the message
+            - summarized_links_content: JSON string of links and summaries
+            
+    Returns:
+        The ID of the inserted message
+    """
+    logger.debug(f"Saving message to database: {message_data['source_type']}, {message_data['channel_id']}, {message_data['message_id']}")
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO messages 
+                (source_url, source_type, channel_id, message_id, date, data, summarized_links_content)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    message_data['source_url'],
+                    message_data['source_type'],
+                    message_data['channel_id'],
+                    message_data['message_id'],
+                    message_data['date'],
+                    message_data['data'],
+                    message_data['summarized_links_content']
+                )
+            )
+            conn.commit()
+            msg_id = cursor.lastrowid
+            logger.info(f"Message saved to database with ID: {msg_id}")
+            return msg_id
+    except Exception as e:
+        logger.error(f"Error saving message to database: {e}")
         logger.error(traceback.format_exc())
         return None
-    finally:
-        if conn:
-            logger.debug("Closing database connection")
-            conn.close()
 
-async def fetch_telegram_messages(channels):
+async def fetch_telegram_messages(channels, time_range="1d", enable_retries=False, debug_mode=False):
     """
     Fetches the latest Telegram messages from a list of channel links or handles.
 
     Args:
         channels: A list of Telegram channel links (e.g., "https://t.me/...") or handles (e.g., "cointelegraph").
+        time_range: Time range to fetch messages for. Either "1d" (1 day) or "1w" (1 week).
+        enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
+        debug_mode: Whether to enable LiteLLM debug mode.
 
     Returns:
         A dictionary where keys are the original channel identifiers and values are lists of
-        serialized message objects, each including 'channel_url'.
+        message IDs in the database.
         Example:
         {
-            "https://t.me/channel1": [
-                {
-                    "internal_id": None,
-                    "telegram_id": 123,
-                    "channel_url": "https://t.me/channel1",
-                    "date": "2024-01-01T00:00:00",
-                    "text": "Message text",
-                    "links": ["link1", "link2"],
-                    "link_summaries": {
-                        "link1": "Summary of link1 content",
-                        "link2": "Summary of link2 content"
-                    }
-                },
-                ...
-            ],
-            "https://t.me/channel2": [...],
+            "https://t.me/channel1": [1, 2, 3],
+            "https://t.me/channel2": [4, 5],
             ...
         }
     """
@@ -312,8 +352,14 @@ async def fetch_telegram_messages(channels):
             return {}
 
         now_utc = datetime.now(timezone.utc)
-        one_day_ago_utc = now_utc - timedelta(hours=24)
-        logger.info(f"Fetching messages since: {one_day_ago_utc.isoformat()}")
+        
+        # Calculate time range based on parameter
+        if time_range == "1w":
+            since_date_utc = now_utc - timedelta(days=7)
+            logger.info(f"Fetching messages for the past week since: {since_date_utc.isoformat()}")
+        else:  # Default to "1d"
+            since_date_utc = now_utc - timedelta(hours=24)
+            logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
 
         for original_identifier in channels:
             channel_identifier = original_identifier
@@ -330,43 +376,61 @@ async def fetch_telegram_messages(channels):
             
             if entity:
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
-                messages = await fetch_channel_messages_since(client, entity, one_day_ago_utc, original_identifier)
+                # messages = await fetch_channel_messages_since(client, entity, one_day_ago_utc, original_identifier)
+                messages = await fetch_channel_messages_since(client, entity, since_date_utc, original_identifier)
+                
+                message_ids = []
                 
                 # Extract summaries for each link in each message
                 for message in messages:
-                    logger.info(f"Processing message ID {message['telegram_id']} with {len(message['links'])} links")
+                    logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
+                    
+                    # Check if message already exists in database
+                    exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
+                    
+                    if exists:
+                        logger.info(f"Message already exists in database with ID: {msg_id}")
+                        message_ids.append(msg_id)
+                        continue
                     
                     for link in message["links"]:
                         logger.info(f"Processing link: {link}")
                         try:
-                            # First check if the summary is already in the database
-                            cached_summary = get_summary_from_db(link)
-                            if cached_summary:
-                                logger.info(f"Using cached summary for {link}")
-                                message["link_summaries"][link] = cached_summary
-                                continue
-                                
-                            # If not in database, extract from the link
+                            # Use the async extract_summary function with await
                             logger.info(f"Extracting summary for link: {link}")
-                            summary = extract_summary(link)
-                            logger.debug(f"Extraction result for {link}: {summary}")
+                            summary_result = await extract_summary(link, enable_retries=enable_retries, debug_mode=debug_mode)
+                            logger.debug(f"Extraction result for {link}: {summary_result}")
                             
-                            if "content" in summary:
-                                logger.info(f"Successfully extracted content for {link}, length: {len(summary['content'])}")
-                                message["link_summaries"][link] = summary["content"]
-                                logger.debug(f"Full content for {link}: {summary['content']}")
+                            if summary_result["success"] == 1 and summary_result["content"]:
+                                logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                                message["link_summaries"][link] = summary_result["content"]
+                                logger.debug(f"Full content for {link}: {summary_result['content']}")
                             else:
                                 logger.warning(f"Failed to extract content for {link}")
                                 message["link_summaries"][link] = "Failed to extract content"
-                                if "error" in summary:
-                                    logger.error(f"Error during extraction for {link}: {summary['error']}")
                         except Exception as e:
                             logger.error(f"Error extracting summary for {link}: {e}")
                             logger.error(traceback.format_exc())
                             message["link_summaries"][link] = f"Error: {str(e)}"
+                    
+                    # Prepare message data for saving
+                    message_data = {
+                        'source_url': message['source_url'],
+                        'source_type': message['source_type'],
+                        'channel_id': message['channel_id'],
+                        'message_id': message['message_id'],
+                        'date': message['date'],
+                        'data': message['data'],
+                        'summarized_links_content': json.dumps(message['link_summaries'])
+                    }
+                    
+                    # Save message to database
+                    msg_id = save_message_to_db(message_data)
+                    if msg_id:
+                        message_ids.append(msg_id)
                 
-                news_data[original_identifier] = messages
-                logger.info(f'Fetched {len(messages)} messages from {channel_identifier}')
+                news_data[original_identifier] = message_ids
+                logger.info(f'Saved {len(message_ids)} messages from {channel_identifier} to database')
             else:
                 logger.warning(f"Could not resolve entity for {channel_identifier}, returning empty list")
                 news_data[original_identifier] = []
@@ -381,7 +445,6 @@ async def fetch_telegram_messages(channels):
     finally:
         logger.debug("Disconnecting Telegram client")
         await client.disconnect()
-
 
 async def main():
     """
@@ -399,22 +462,17 @@ async def main():
     
     logger.info(f"Channels to fetch: {channels}")
     
-    # Fetch messages from the channels
-    news_data = await fetch_telegram_messages(channels)
+    # Time range: "1d" for 1 day or "1w" for 1 week
+    time_range = "1w"
+    
+    # Fetch messages from the channels, optionally enabling retries or debug mode
+    news_data = await fetch_telegram_messages(channels, time_range=time_range, enable_retries=False, debug_mode=False)
     
     # Print the results
-    for channel, messages in news_data.items():
+    for channel, message_ids in news_data.items():
         logger.info(f"\nChannel: {channel}")
-        logger.info(f"Number of messages: {len(messages)}")
-        for i, message in enumerate(messages[:3]):  # Print first 3 messages as example
-            logger.info(f"Message {i+1}:")
-            logger.info(f"  Date: {message['date']}")
-            logger.info(f"  Text: {message['text']}")  # Log full text without truncation
-            logger.info(f"  Links: {message['links']}")
-            logger.info(f"  Summaries:")
-            for link, summary in message['link_summaries'].items():
-                logger.info(f"    Link: {link}")
-                logger.info(f"    Summary: {summary}")  # Log full summary without truncation
+        logger.info(f"Number of messages saved to database: {len(message_ids)}")
+        logger.info(f"Message IDs: {message_ids}")
 
 
 if __name__ == "__main__":

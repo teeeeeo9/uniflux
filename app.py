@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import json
 import re  # Import the regular expression module
-# from google import genai
+
 
 load_dotenv()
 
@@ -23,7 +23,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("app.log"),
+        logging.FileHandler("log.log"),
         logging.StreamHandler()
     ]
 )
@@ -55,6 +55,20 @@ def init_db():
         db = get_db()
         with open('schema.sql', 'r') as f:
             db.cursor().executescript(f.read())
+        
+        # Populate the sources table with sources from environment variable
+        telegram_sources = os.getenv("TELEGRAM_SOURCES", "").split(",")
+        cursor = db.cursor()
+        try:
+            for source in telegram_sources:
+                source = source.strip()
+                if source:  # Skip empty strings
+                    cursor.execute("INSERT OR IGNORE INTO sources (url) VALUES (?)", (source,))
+            db.commit()
+            logger.info(f'Sources table populated with {len(telegram_sources)} sources from environment')
+        except sqlite3.Error as e:
+            logger.error(f'Error populating sources table: {e}')
+        
         db.commit()
         logger.info('Database initialized with schema from schema.sql')
 
