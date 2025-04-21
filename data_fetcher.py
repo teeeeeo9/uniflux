@@ -506,6 +506,82 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
         logger.debug("Disconnecting Telegram client")
         await client.disconnect()
 
+
+
+def get_messages_from_db(source_type, source_link, period="1d"):
+    """
+    Retrieves messages from the database based on source type, source link, and time period.
+    
+    Args:
+        source_type: The type of source (e.g., 'telegram')
+        source_link: The source URL or identifier (e.g., 'https://t.me/channel')
+        period: Time period to retrieve messages for. Either "1d" (1 day) or "1w" (1 week).
+        
+    Returns:
+        A list of dictionaries containing complete message details.
+    """
+    logger.info(f"Retrieving {period} messages for {source_type} source: {source_link}")
+    
+    # Extract channel_id from source_link if it's a URL
+    channel_id = source_link
+    if source_link.startswith("https://t.me/"):
+        parts = source_link.split('/')
+        if len(parts) > 3:
+            channel_id = parts[-1]
+        elif len(parts) == 3 and parts[-1]:
+            channel_id = parts[-1]
+    
+    logger.debug(f"Using channel_id: {channel_id}")
+    
+    # Calculate time range based on parameter
+    now_utc = datetime.now(timezone.utc)
+    if period == "1w":
+        since_date_utc = now_utc - timedelta(days=7)
+        logger.info(f"Fetching messages for the past week since: {since_date_utc.isoformat()}")
+    else:  # Default to "1d"
+        since_date_utc = now_utc - timedelta(hours=24)
+        logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, source_url, source_type, channel_id, message_id, date, data, summarized_links_content
+                FROM messages
+                WHERE source_type = ? AND channel_id = ? AND date >= ?
+                ORDER BY date DESC
+                """,
+                (source_type, channel_id, since_date_utc.isoformat())
+            )
+            
+            results = cursor.fetchall()
+            logger.info(f"Retrieved {len(results)} messages from database")
+            
+            messages = []
+            for row in results:
+                message = dict(row)
+                
+                # Parse JSON string back to dictionary
+                if message['summarized_links_content']:
+                    try:
+                        message['link_summaries'] = json.loads(message['summarized_links_content'])
+                    except json.JSONDecodeError:
+                        logger.warning(f"Could not parse summarized_links_content for message {message['id']}")
+                        message['link_summaries'] = {}
+                else:
+                    message['link_summaries'] = {}
+                    
+                messages.append(message)
+                
+            return messages
+            
+    except Exception as e:
+        logger.error(f"Error retrieving messages from database: {e}")
+        logger.error(traceback.format_exc())
+        return []
+
+
 async def main():
     """
     Example function to demonstrate how to use the fetch_telegram_messages function.
@@ -534,10 +610,11 @@ async def main():
         logger.info(f"Number of messages saved to database: {len(message_ids)}")
         logger.info(f"Message IDs: {message_ids}")
 
-
 if __name__ == "__main__":
     # Run the async main function
-    logger.info("Starting data_fetcher.py")
-    asyncio.run(main())
-    logger.info("data_fetcher.py execution completed")
+    # logger.info("Starting data_fetcher.py")
+    # asyncio.run(main())
+    # logger.info("data_fetcher.py execution completed")
+    res = get_messages_from_db("telegram", "https://t.me/CoinDeskGlobal", "1d")
+    print(res)
 
