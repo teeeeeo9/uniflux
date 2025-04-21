@@ -370,7 +370,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
 
     Args:
         channels: A list of Telegram channel links (e.g., "https://t.me/...") or handles (e.g., "cointelegraph").
-        time_range: Time range to fetch messages for. Either "1d" (1 day) or "1w" (1 week).
+        time_range: Time range to fetch messages for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
         enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
         debug_mode: Whether to enable LiteLLM debug mode.
 
@@ -405,6 +405,9 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
         if time_range == "1w":
             since_date_utc = now_utc - timedelta(days=7)
             logger.info(f"Fetching messages for the past week since: {since_date_utc.isoformat()}")
+        elif time_range == "2d":
+            since_date_utc = now_utc - timedelta(days=2)
+            logger.info(f"Fetching messages for the past 2 days since: {since_date_utc.isoformat()}")
         else:  # Default to "1d"
             since_date_utc = now_utc - timedelta(hours=24)
             logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
@@ -515,7 +518,7 @@ def get_messages_from_db(source_type, source_link, period="1d"):
     Args:
         source_type: The type of source (e.g., 'telegram')
         source_link: The source URL or identifier (e.g., 'https://t.me/channel')
-        period: Time period to retrieve messages for. Either "1d" (1 day) or "1w" (1 week).
+        period: Time period to retrieve messages for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
         
     Returns:
         A list of dictionaries containing complete message details.
@@ -538,6 +541,9 @@ def get_messages_from_db(source_type, source_link, period="1d"):
     if period == "1w":
         since_date_utc = now_utc - timedelta(days=7)
         logger.info(f"Fetching messages for the past week since: {since_date_utc.isoformat()}")
+    elif period == "2d":
+        since_date_utc = now_utc - timedelta(days=2)
+        logger.info(f"Fetching messages for the past 2 days since: {since_date_utc.isoformat()}")
     else:  # Default to "1d"
         since_date_utc = now_utc - timedelta(hours=24)
         logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
@@ -588,18 +594,28 @@ async def main():
     """
     logger.info("Starting main function")
     
-    # List of Telegram channels to fetch messages from
-    channels = [
-        # "https://t.me/cointelegraph",
-        "https://t.me/CoinDeskGlobal"
-        # "https://t.me/binanceupdates",
-        # "cryptonews"  # Can also use just the handle
-    ]
+    # Get list of Telegram channels from database
+    channels = []
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT url 
+                FROM sources 
+                """
+            )
+            channels = [row['url'] for row in cursor.fetchall()]
+        if not channels:
+            logger.error("No active Telegram channels found in database")
+    except Exception as e:
+        logger.error(f"Error retrieving channels from database: {e}")
+        logger.error(traceback.format_exc())
     
     logger.info(f"Channels to fetch: {channels}")
     
     # Time range: "1d" for 1 day or "1w" for 1 week
-    time_range = "1d"
+    time_range = "2d"
     
     # Fetch messages from the channels, optionally enabling retries or debug mode
     news_data = await fetch_telegram_messages(channels, time_range=time_range, enable_retries=False, debug_mode=False)
@@ -612,9 +628,9 @@ async def main():
 
 if __name__ == "__main__":
     # Run the async main function
-    # logger.info("Starting data_fetcher.py")
-    # asyncio.run(main())
-    # logger.info("data_fetcher.py execution completed")
-    res = get_messages_from_db("telegram", "https://t.me/CoinDeskGlobal", "1d")
-    print(res)
+    logger.info("Starting data_fetcher.py")
+    asyncio.run(main())
+    logger.info("data_fetcher.py execution completed")
+    # res = get_messages_from_db("telegram", "https://t.me/CoinDeskGlobal", "1d")
+    # print(res)
 
