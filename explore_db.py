@@ -136,6 +136,51 @@ def delete_message_by_id():
         print(f"Error: {e}")
         return False
 
+def list_messages(limit=None):
+    """List all messages from the messages table with optional limit"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            if limit:
+                cursor.execute("""
+                    SELECT id, source_url, source_type, channel_id, message_id, 
+                           date, data, summarized_links_content, created_at 
+                    FROM messages 
+                    ORDER BY created_at DESC 
+                    LIMIT ?
+                """, (limit,))
+            else:
+                cursor.execute("""
+                    SELECT id, source_url, source_type, channel_id, message_id, 
+                           date, data, summarized_links_content, created_at 
+                    FROM messages 
+                    ORDER BY created_at DESC
+                """)
+            
+            messages = cursor.fetchall()
+            
+            print(f"\n=== Messages {f'(Limited to {limit})' if limit else ''} ===")
+            if not messages:
+                print("No messages found in the database.")
+                return
+                
+            for i, msg in enumerate(messages, 1):
+                print(f"\n----- Message #{i} -----")
+                print(f"id: {msg['id']}")
+                print(f"source_url: {msg['source_url']}")
+                print(f"source_type: {msg['source_type']}")
+                print(f"channel_id: {msg['channel_id']}")
+                print(f"message_id: {msg['message_id']}")
+                print(f"date: {msg['date']}")
+                print(f"data: {msg['data']}")
+                print(f"summarized_links_content: {msg['summarized_links_content']}")
+                print(f"created_at: {msg['created_at']}")
+    except sqlite3.Error as e:
+        print(f"Database error while listing messages: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
 if __name__ == "__main__":
     print("Database Explorer for link_summaries")
     
@@ -151,7 +196,10 @@ if __name__ == "__main__":
         
         # Show most recent records
         # get_recent_records(10)
-        delete_message_by_id()
+        # delete_message_by_id()
+        
+        # List messages from the messages table
+        list_messages(10)  # Limit to 10 messages, remove the parameter to show all
         
         # # Allow interactive search
         # search_term = input("\nEnter a term to search in URLs (or press Enter to skip): ")
