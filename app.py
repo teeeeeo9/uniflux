@@ -15,6 +15,9 @@ from datetime import datetime, timedelta, timezone
 import json
 import re  # Import the regular expression module
 from config import DATABASE, LOG_FILE
+from data_summarizer import process_and_aggregate_news, generate_insights
+import threading
+from functools import wraps
 
 
 load_dotenv()
@@ -90,8 +93,15 @@ def format_log_data(data):
     except Exception as e:
         return f"[Error formatting log data: {str(e)}]"
 
+# Helper function to run async functions in a synchronous context
+def run_async(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+    return wrapper
+
 @app.route('/process_news', methods=['POST'])
-async def process_news_api():
+def process_news_api():
     """
     API endpoint to receive message history and return aggregated summaries with message IDs.
 
@@ -164,9 +174,9 @@ async def process_news_api():
     logger.info(f"PROCESS [{request_id}] - Sources: {list(source_urls)}")
     
     try:
-        # Call the processing function
+        # Call the processing function synchronously
         logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with {message_count} messages")
-        processed_data = await process_and_aggregate_news(messages_history)
+        processed_data = run_async(process_and_aggregate_news)(messages_history)
         
         # Log detailed result information
         topic_count = len(processed_data)
@@ -195,6 +205,86 @@ async def process_news_api():
         }
         
         logger.error(f"ERROR [{request_id}] - Failed to process request: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/insights', methods=['GET'])
+def get_insights():
+    """
+    API endpoint to generate summaries and actionable insights based on time period and sources.
+    
+    Query Parameters:
+    - period: Time period to analyze ('1d', '2d', '1w')
+    - sources: Comma-separated list of source URLs to filter by (optional)
+    
+    Response Format (JSON):
+    {
+        "topics": [
+            {
+                "topic": "Topic Name",
+                "summary": "Detailed summary...",
+                "message_ids": [1, 2, 3],
+                "importance": 8,
+                "insights": {
+                    "general": "...",
+                    "long": "...",
+                    "exec_options_long": [
+                        {"text": "...", "description": "...", "type": "defi"}
+                    ],
+                    "short": "...",
+                    "neutral": "..."
+                }
+            },
+            ...
+        ]
+    }
+    """
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /insights - IP: {user_ip}")
+    
+    # Get query parameters
+    period = request.args.get('period', '1d')
+    sources_str = request.args.get('sources', '')
+    sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
+    
+    logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
+    
+    try:
+        # Generate summaries
+        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
+        summaries = run_async(process_and_aggregate_news)(period, sources)
+        
+        if not summaries:
+            logger.warning(f"PROCESS [{request_id}] - No summaries generated")
+            return jsonify({"topics": []}), 200
+        
+        # Generate insights for each topic
+        logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
+        topics_with_insights = run_async(generate_insights)(summaries)
+        
+        # Log detailed result information
+        logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")
+        
+        # Create and log the response
+        response = {"topics": topics_with_insights}
+        logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
+        
+        return jsonify(response), 200
+    
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to process insights request: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
         return jsonify({"error": str(e)}), 500

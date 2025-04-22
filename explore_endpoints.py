@@ -118,9 +118,104 @@ def explore_news_all_post_endpoint():
     except json.JSONDecodeError:
         print("Error decoding JSON response from /news/all (POST)")
 
+def explore_insights_endpoint():
+    """Tests the GET /insights endpoint that provides actionable insights based on time period and sources."""
+    # Define parameters
+    period = "1d"  # Options: 1d, 2d, 1w
+    sources = "https://t.me/the_block_crypto,https://t.me/cointelegraph"  # Comma-separated list of sources
+    
+    # Build URL with query parameters
+    url = f"{BASE_URL}/insights?period={period}&sources={sources}"
+    
+    print(f"\n--- Testing /insights Endpoint (GET) ---")
+    print(f"Requesting insights for period: {period}, sources: {sources}")
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Get the number of topics
+        topics = data.get("topics", [])
+        topic_count = len(topics)
+        
+        print(f"Received {topic_count} topics with insights")
+        
+        # Print a summary of each topic
+        for i, topic in enumerate(topics):
+            topic_name = topic.get("topic", "Unknown")
+            importance = topic.get("importance", "N/A")
+            message_count = len(topic.get("message_ids", []))
+            
+            print(f"\nTopic {i+1}: {topic_name}")
+            print(f"  Importance: {importance}/10")
+            print(f"  Messages: {message_count}")
+            
+            # Print insights summary
+            insights = topic.get("insights", {})
+            if insights:
+                print("  Insights:")
+                for key in insights:
+                    if key == "exec_options_long" or key == "exec_options_short":
+                        options = insights[key]
+                        if options:
+                            print(f"    {key}: {len(options)} options")
+                            for j, option in enumerate(options):
+                                print(f"      Option {j+1}:")
+                                for opt_key, opt_value in option.items():
+                                    print(f"        {opt_key}: {opt_value}")
+                    else:
+                        content = insights[key]
+                        if content:
+                            # Display full content without truncation
+                            print(f"    {key}: {content}")
+        
+        # Ask if the user wants to see the full JSON response
+        show_full = input("\nDo you want to see the full JSON response? (y/n): ").lower() == 'y'
+        if show_full:
+            print("\nFull response:")
+            print(json.dumps(data, indent=4, ensure_ascii=False))
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error accessing /insights: {e}")
+        if hasattr(e, 'response') and e.response:
+            print(f"Response status code: {e.response.status_code}")
+            try:
+                error_data = e.response.json()
+                print(f"Response body: {json.dumps(error_data, indent=4)}")
+            except json.JSONDecodeError:
+                print(f"Could not decode error response: {e.response.text}")
+        else:
+            print(f"No response received.")
+    except json.JSONDecodeError:
+        print("Error decoding JSON response from /insights (GET)")
+
 if __name__ == "__main__":
     print("Make sure your Flask app is running before executing this script.")
     input("Press Enter to continue...")
-    explore_sources_endpoint()
-    explore_process_news_post_endpoint() # Testing the endpoint that takes raw message history
-    explore_news_all_post_endpoint()    # Testing the new /news/all endpoint
+    
+    # Prompt user to select which endpoint to test
+    print("\nAvailable endpoints to test:")
+    print("1. /sources (GET)")
+    print("2. /process_news (POST)")
+    print("3. /news/all (POST)")
+    print("4. /insights (GET) - NEW!")
+    print("5. Test all endpoints")
+    
+    choice = input("\nEnter your choice (1-5): ")
+    
+    if choice == '1':
+        explore_sources_endpoint()
+    elif choice == '2':
+        explore_process_news_post_endpoint()
+    elif choice == '3':
+        explore_news_all_post_endpoint()
+    elif choice == '4':
+        explore_insights_endpoint()
+    elif choice == '5':
+        explore_sources_endpoint()
+        explore_process_news_post_endpoint()
+        explore_news_all_post_endpoint()
+        explore_insights_endpoint()
+    else:
+        print("Invalid choice. Exiting.")

@@ -334,9 +334,87 @@ async def process_and_aggregate_news(period, sources=None):
         logger.error(traceback.format_exc())
         return []
 
-async def main(period='1d', sources=None):
+async def generate_insights(summary_data):
+    """
+    Generate actionable financial insights based on summarized news data
+    
+    Args:
+        summary_data: List of summarized topics with details
+        
+    Returns:
+        List of topics with added insights
+    """
+    logger.info(f"Generating insights for {len(summary_data)} topics")
+    
+    from instruction_templates import INSTRUCTIONS
+    
+    insights_prompt_template = INSTRUCTIONS["financial_insights"]
+    enhanced_summaries = []
+    
+    for i, topic in enumerate(summary_data):
+        try:
+            logger.info(f"Generating insights for topic: {topic.get('topic', 'Unknown')}")
+            
+            # Format the summary for the prompt
+            topic_summary = f"Topic: {topic.get('topic', 'Unknown')}\n"
+            topic_summary += f"Summary: {topic.get('summary', '')}\n"
+            topic_summary += f"Importance: {topic.get('importance', 0)}/10\n"
+            
+            prompt = insights_prompt_template.format(summary=topic_summary)
+            logger.debug(f"Sending prompt to Gemini: {prompt[:100]}...")
+            
+            # Use Gemini to generate insights
+            response = await client.aio.models.generate_content(
+                model='gemini-2.0-flash', contents=prompt
+            )
+            logger.debug("Received response from Gemini API")
+            
+            # Extract JSON from response
+            response_text = response.text
+            
+            # Find JSON content (may be wrapped in markdown code blocks)
+            if "```json" in response_text:
+                logger.debug("Found JSON content in markdown json code block")
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
+                json_str = response_text[json_start:json_end].strip()
+            elif "```" in response_text:
+                logger.debug("Found JSON content in markdown code block")
+                json_start = response_text.find("```") + 3
+                json_end = response_text.find("```", json_start)
+                json_str = response_text[json_start:json_end].strip()
+            else:
+                logger.debug("No markdown code blocks found, using raw response")
+                json_str = response_text
+                
+            # Parse the JSON
+            try:
+                insights = json.loads(json_str)
+                logger.info(f"Successfully parsed insights for topic: {topic.get('topic', 'Unknown')}")
+                
+                # Add insights to the topic
+                enhanced_topic = topic.copy()
+                enhanced_topic["insights"] = insights
+                enhanced_summaries.append(enhanced_topic)
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                logger.error(f"Raw response: {response_text}")
+                # Add the topic without insights
+                enhanced_summaries.append(topic)
+                
+        except Exception as e:
+            logger.error(f"Error generating insights for topic {i}: {e}")
+            logger.error(traceback.format_exc())
+            # Include the topic without insights if there's an error
+            enhanced_summaries.append(topic)
+    
+    logger.info(f"Completed generating insights for {len(summary_data)} topics")
+    return enhanced_summaries
+
+async def main(period='1d', sources=None, include_insights=False):
     """Main function to run the summarizer"""
-    logger.info(f"Starting main function with period={period}, sources={sources}")
+    logger.info(f"Starting main function with period={period}, sources={sources}, include_insights={include_insights}")
     
     try:
         result = await process_and_aggregate_news(period, sources)
@@ -345,6 +423,12 @@ async def main(period='1d', sources=None):
             logger.warning("No results generated from summarization")
         else:
             logger.info(f"Generated {len(result)} topic summaries")
+            
+            # Generate insights if requested
+            if include_insights:
+                logger.info("Generating insights for topics")
+                result = await generate_insights(result)
+                logger.info(f"Added insights to {len(result)} topics")
             
         print(json.dumps(result, indent=2))
         return result
