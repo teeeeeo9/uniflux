@@ -20,15 +20,36 @@ const Settings = ({ onFetchInsights }) => {
     const fetchSources = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/sources');
+        console.log('Fetching sources from /sources endpoint');
+        const response = await fetch('/sources', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch sources');
+          // Try to get detailed error message
+          let errorMsg = `Server error: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              errorMsg = errorData.error;
+            }
+          } catch (e) {
+            const text = await response.text();
+            if (text) errorMsg += ` - ${text}`;
+          }
+          throw new Error(errorMsg);
         }
+        
         const data = await response.json();
-        setCategories(data.sources);
+        console.log('Sources response:', data);
+        setCategories(data.sources || {});
       } catch (err) {
         console.error('Error fetching sources:', err);
-        setError(err.message);
+        setError(err.message || 'Failed to fetch sources');
       } finally {
         setLoading(false);
       }
@@ -73,6 +94,7 @@ const Settings = ({ onFetchInsights }) => {
       sources = selectedSources;
     }
     
+    console.log('Submitting analysis with settings:', { period, sources });
     onFetchInsights({ period, sources });
   };
 
@@ -83,7 +105,10 @@ const Settings = ({ onFetchInsights }) => {
         {loading ? (
           <div className="loading-indicator">Loading sources...</div>
         ) : error ? (
-          <div className="error-message">Error: {error}</div>
+          <div className="error-message">
+            <p>Error: {error}</p>
+            <p>Make sure the Flask backend is running properly.</p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="form-row">

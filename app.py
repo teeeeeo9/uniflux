@@ -46,6 +46,26 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 app = Flask(__name__)
 CORS(app)
 
+def ensure_event_loop():
+    """
+    Ensures a valid event loop is available for the current thread.
+    Creates a new one if needed.
+    
+    Returns:
+        asyncio.AbstractEventLoop: The event loop
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            logger.debug("Event loop was closed, creating a new one")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+    except RuntimeError:
+        logger.debug("No event loop found in thread, creating a new one")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop
+
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row  # Return rows as dictionaries
@@ -100,120 +120,137 @@ def format_log_data(data):
 def run_async(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        return asyncio.run(func(*args, **kwargs))
+        # Get or create an event loop for this thread
+        loop = ensure_event_loop()
+        
+        try:
+            # Run the function in the event loop
+            return loop.run_until_complete(func(*args, **kwargs))
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                # If the loop closed during execution, create a new one and retry
+                logger.warning("Event loop closed during execution. Creating a new one and retrying...")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                return loop.run_until_complete(func(*args, **kwargs))
+            else:
+                raise
+        finally:
+            # Don't close the loop after use - this helps prevent issues with subsequent calls
+            pass
     return wrapper
 
-@app.route('/process_news', methods=['POST'])
-def process_news_api():
-    """
-    API endpoint to receive message history and return aggregated summaries with message IDs.
+# @app.route('/process_news', methods=['POST'])
+# async def process_news_api():
+#     """
+#     API endpoint to receive message history and return aggregated summaries with message IDs.
 
-    Request Body (JSON):
-    {
-        "messages_history": [
-            {
-                "internal_id": 1,
-                "telegram_id": 100,
-                "channel_url": "https://t.me/channel1",
-                "text": "Breaking news: Protocol XYZ launched!",
-                "date": "...",
-                "links": []
-            },
-            {
-                "internal_id": 2,
-                "telegram_id": 101,
-                "channel_url": "https://t.me/channel1",
-                "text": "More details on Protocol XYZ...",
-                "date": "...",
-                "links": ["whitepaper_link"]
-            },
-            ...
-        ]
-    }
+#     Request Body (JSON):
+#     {
+#         "messages_history": [
+#             {
+#                 "internal_id": 1,
+#                 "telegram_id": 100,
+#                 "channel_url": "https://t.me/channel1",
+#                 "text": "Breaking news: Protocol XYZ launched!",
+#                 "date": "...",
+#                 "links": []
+#             },
+#             {
+#                 "internal_id": 2,
+#                 "telegram_id": 101,
+#                 "channel_url": "https://t.me/channel1",
+#                 "text": "More details on Protocol XYZ...",
+#                 "date": "...",
+#                 "links": ["whitepaper_link"]
+#             },
+#             ...
+#         ]
+#     }
 
-    Response Format (JSON):
-    {
-        "summaries": {
-            "DeFi Protocol Launch": [1, 2, 5],
-            "Market Analysis": [3, 7]
-        }
-    }
-    """
-    # Log request details
-    user_ip = request.remote_addr
-    headers = dict(request.headers)
-    request_id = headers.get('X-Request-ID', 'unknown')
+#     Response Format (JSON):
+#     {
+#         "summaries": {
+#             "DeFi Protocol Launch": [1, 2, 5],
+#             "Market Analysis": [3, 7]
+#         }
+#     }
+#     """
+#     # Log request details
+#     user_ip = request.remote_addr
+#     headers = dict(request.headers)
+#     request_id = headers.get('X-Request-ID', 'unknown')
     
-    logger.info(f"REQUEST [{request_id}] - /process_news - IP: {user_ip}")
-    logger.info(f"REQUEST [{request_id}] - Headers: {format_log_data(headers)}")
+#     logger.info(f"REQUEST [{request_id}] - /process_news - IP: {user_ip}")
+#     logger.info(f"REQUEST [{request_id}] - Headers: {format_log_data(headers)}")
     
-    # Log request body
-    try:
-        data = request.get_json()
-        logger.info(f"REQUEST [{request_id}] - Body: {format_log_data(data)}")
-    except Exception as e:
-        logger.error(f"REQUEST [{request_id}] - Failed to parse JSON body: {str(e)}")
-        return jsonify({"error": "Invalid JSON in request body"}), 400
+#     # Log request body
+#     try:
+#         data = request.get_json()
+#         logger.info(f"REQUEST [{request_id}] - Body: {format_log_data(data)}")
+#     except Exception as e:
+#         logger.error(f"REQUEST [{request_id}] - Failed to parse JSON body: {str(e)}")
+#         return jsonify({"error": "Invalid JSON in request body"}), 400
     
-    if not data or 'messages_history' not in data or not isinstance(data['messages_history'], list):
-        logger.error(f"REQUEST [{request_id}] - Invalid format - Missing or invalid messages_history field")
-        return jsonify({"error": "Invalid request. 'messages_history' list is required in the request body."}), 400
+#     if not data or 'messages_history' not in data or not isinstance(data['messages_history'], list):
+#         logger.error(f"REQUEST [{request_id}] - Invalid format - Missing or invalid messages_history field")
+#         return jsonify({"error": "Invalid request. 'messages_history' list is required in the request body."}), 400
 
-    messages_history = data['messages_history']
+#     messages_history = data['messages_history']
     
-    # Extract message details for logging
-    message_count = len(messages_history)
-    message_ids = [msg.get('internal_id', 'unknown') for msg in messages_history]
+#     # Extract message details for logging
+#     message_count = len(messages_history)
+#     message_ids = [msg.get('internal_id', 'unknown') for msg in messages_history]
 
-    # Extract the sources for tracking
-    source_urls = set()
-    for message in messages_history:
-        if 'channel_url' in message and message['channel_url']:
-            source_urls.add(message['channel_url'])
+#     # Extract the sources for tracking
+#     source_urls = set()
+#     for message in messages_history:
+#         if 'channel_url' in message and message['channel_url']:
+#             source_urls.add(message['channel_url'])
     
-    # Log detailed request information
-    logger.info(f"PROCESS [{request_id}] - Processing {message_count} messages from {len(source_urls)} sources")
-    logger.info(f"PROCESS [{request_id}] - Message IDs sample: {message_ids}")
-    logger.info(f"PROCESS [{request_id}] - Sources: {list(source_urls)}")
+#     # Log detailed request information
+#     logger.info(f"PROCESS [{request_id}] - Processing {message_count} messages from {len(source_urls)} sources")
+#     logger.info(f"PROCESS [{request_id}] - Message IDs sample: {message_ids}")
+#     logger.info(f"PROCESS [{request_id}] - Sources: {list(source_urls)}")
     
-    try:
-        # Call the processing function synchronously
-        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with {message_count} messages")
-        processed_data = run_async(process_and_aggregate_news)(messages_history)
+#     try:
+#         # Call the processing function with direct await
+#         logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with {message_count} messages")
+#         processed_data = await process_and_aggregate_news(messages_history)
         
-        # Log detailed result information
-        topic_count = len(processed_data)
-        topics_summary = {}
-        for topic, msg_ids in processed_data.items():
-            topics_summary[topic] = {
-                "count": len(msg_ids),
-                "sample_ids": msg_ids
-            }
+#         # Log detailed result information
+#         topic_count = len(processed_data)
+#         topics_summary = {}
+#         for topic, msg_ids in processed_data.items():
+#             topics_summary[topic] = {
+#                 "count": len(msg_ids),
+#                 "sample_ids": msg_ids
+#             }
         
-        logger.info(f"RESPONSE [{request_id}] - Generated {topic_count} topics")
-        logger.info(f"RESPONSE [{request_id}] - Topics summary: {format_log_data(topics_summary)}")
+#         logger.info(f"RESPONSE [{request_id}] - Generated {topic_count} topics")
+#         logger.info(f"RESPONSE [{request_id}] - Topics summary: {format_log_data(topics_summary)}")
         
-        # Create and log the response
-        response = {"summaries": processed_data}
-        logger.info(f"RESPONSE [{request_id}] - Full response: {format_log_data(response)}")
+#         # Create and log the response
+#         response = {"summaries": processed_data}
+#         logger.info(f"RESPONSE [{request_id}] - Full response: {format_log_data(response)}")
         
-        return jsonify(response), 200
+#         return jsonify(response), 200
     
-    except Exception as e:
-        # Log detailed error information
-        error_details = {
-            "error_type": type(e).__name__,
-            "error_message": str(e),
-            "traceback": traceback.format_exc()
-        }
+#     except Exception as e:
+#         # Log detailed error information
+#         error_details = {
+#             "error_type": type(e).__name__,
+#             "error_message": str(e),
+#             "traceback": traceback.format_exc()s
+#         }
         
-        logger.error(f"ERROR [{request_id}] - Failed to process request: {error_details['error_type']}: {error_details['error_message']}")
-        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+#         logger.error(f"ERROR [{request_id}] - Failed to process request: {error_details['error_type']}: {error_details['error_message']}")
+#         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({"error": str(e)}), 500
+#         return jsonify({"error": str(e)}), 500
 
 @app.route('/insights', methods=['GET'])
-def get_insights():
+async def get_insights():
     """
     API endpoint to generate summaries and actionable insights based on time period and sources.
     
@@ -243,6 +280,9 @@ def get_insights():
         ]
     }
     """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
     # Log request details
     user_ip = request.remote_addr
     headers = dict(request.headers)
@@ -258,17 +298,17 @@ def get_insights():
     logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
     
     try:
-        # Generate summaries
+        # Generate summaries with direct await
         logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
-        summaries = run_async(process_and_aggregate_news)(period, sources)
+        summaries = await process_and_aggregate_news(period, sources)
         
         if not summaries:
             logger.warning(f"PROCESS [{request_id}] - No summaries generated")
             return jsonify({"topics": []}), 200
         
-        # Generate insights for each topic
+        # Generate insights for each topic with direct await
         logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
-        topics_with_insights = run_async(generate_insights)(summaries)
+        topics_with_insights = await generate_insights(summaries)
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")
@@ -293,7 +333,7 @@ def get_insights():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/sources', methods=['GET'])
-def get_sources():
+async def get_sources():
     """
     API endpoint to retrieve all sources with their categories from the database.
     
@@ -301,6 +341,9 @@ def get_sources():
         A JSON list of sources grouped by category.
     """
     try:
+        # Ensure we have a valid event loop
+        ensure_event_loop()
+        
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -334,4 +377,7 @@ def get_sources():
 
 if __name__ == '__main__':
     logger.info("Application starting up")
-    app.run(debug=True)
+    # Initialize the event loop before starting the app
+    ensure_event_loop()
+    # Run with threaded=True and a higher thread limit to handle multiple concurrent requests
+    app.run(debug=True, threaded=True, use_reloader=False)  # Disable reloader to avoid event loop issues

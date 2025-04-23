@@ -14,17 +14,46 @@ function App() {
     setLoading(true);
     setError(null);
     setSelectedTopicIndex(null);
+    setSummary(null);
+    
     try {
+      // Build query parameters
       const queryParams = new URLSearchParams({
         period: settings.period,
         ...(settings.sources.length > 0 && { sources: settings.sources.join(',') })
       }).toString();
 
-      const response = await fetch(`/insights?${queryParams}`);
+      console.log(`Fetching from: /insights?${queryParams}`);
+      
+      // Make the API request with more detailed error handling
+      const response = await fetch(`/insights?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Handle non-OK responses
       if (!response.ok) {
-        throw new Error('Failed to fetch insights');
+        // Try to get error details from response
+        let errorMsg = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMsg = errorData.error;
+          }
+        } catch (e) {
+          // If we can't parse JSON, use text content if available
+          const text = await response.text();
+          if (text) errorMsg += ` - ${text}`;
+        }
+        throw new Error(errorMsg);
       }
+      
+      // Parse the JSON response
       const data = await response.json();
+      console.log('API response:', data);
       setSummary(data);
     } catch (err) {
       console.error('Error fetching insights:', err);
@@ -57,7 +86,13 @@ function App() {
         <Settings onFetchInsights={fetchInsights} />
         
         {loading && <div className="loading">Loading insights...</div>}
-        {error && <div className="error">Error: {error}</div>}
+        {error && (
+          <div className="error">
+            <h3>Error</h3>
+            <p>{error}</p>
+            <p>Make sure the Flask backend is running on port 5000.</p>
+          </div>
+        )}
         
         {/* Middle section - Topics list */}
         {!loading && !error && summary && summary.topics && (

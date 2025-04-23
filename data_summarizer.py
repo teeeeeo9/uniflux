@@ -179,8 +179,19 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
     """
     logger.info(f"Summarizing content with Gemini using prompt type: {prompt_type}")
     
+    # Check if the event loop is closed and create a new one if needed
     try:
-        # model = genai.GenerativeModel('gemini-pro')
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            logger.debug("Event loop was closed, creating a new one")
+            asyncio.set_event_loop(asyncio.new_event_loop())
+    except RuntimeError:
+        logger.debug("No event loop found, creating a new one")
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    
+    try:
+        # Create a fresh client for this request to avoid connection issues
+        request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         logger.debug("Created Gemini model instance")
         
         if prompt_type == "initial":
@@ -217,8 +228,8 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
             """
         
         logger.debug("Sending request to Gemini API")
-        # response = await model.generate_content_async(prompt)
-        response = await client.aio.models.generate_content(
+        # Use the request-specific client instead of the global one
+        response = await request_client.aio.models.generate_content(
             model='gemini-2.0-flash', contents=prompt
         )
         logger.debug("Received response from Gemini API")

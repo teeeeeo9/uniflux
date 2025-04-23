@@ -22,24 +22,7 @@ def get_db_connection():
 
 def update_source_categories():
     """Update existing sources with category information"""
-    # Define sources with their categories
-    # sources_with_categories = [
-    #     # Web3 category
-    #     {'url': 'https://t.me/CoinDeskGlobal', 'category': 'Web3'},
-    #     {'url': 'https://t.me/cointelegraph', 'category': 'Web3'},
-    #     {'url': 'https://t.me/thedailyape', 'category': 'Web3'},
-    #     {'url': 'https://t.me/blockchainnewscentral', 'category': 'Web3'},
-        
-    #     # Crypto Markets category
-    #     {'url': 'https://t.me/cryptomarketdaily', 'category': 'Crypto Markets'},
-    #     {'url': 'https://t.me/thecryptomerger', 'category': 'Crypto Markets'},
-    #     {'url': 'https://t.me/cryptoanalysis', 'category': 'Crypto Markets'},
-        
-    #     # Energy News category
-    #     {'url': 'https://t.me/energynewstoday', 'category': 'Energy'},
-    #     {'url': 'https://t.me/energymarkets', 'category': 'Energy'},
-    #     {'url': 'https://t.me/climatetech', 'category': 'Energy'}
-    # ]
+
     
     try:
         conn = get_db_connection()
