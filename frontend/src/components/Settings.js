@@ -1,42 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import './Settings.css';
 
-// Predefined source lists
-const PREDEFINED_SOURCES = {
-  'Web3 News': [
-    'https://t.me/CoinDeskGlobal',
-    'https://t.me/cointelegraph',
-    'https://t.me/thedailyape',
-    'https://t.me/blockchainnewscentral'
-  ],
-  'Crypto Markets': [
-    'https://t.me/cryptomarketdaily',
-    'https://t.me/thecryptomerger',
-    'https://t.me/cryptoanalysis'
-  ],
-  'Energy News': [
-    'https://t.me/energynewstoday',
-    'https://t.me/energymarkets',
-    'https://t.me/climatetech'
-  ]
-};
-
 const Settings = ({ onFetchInsights }) => {
-  const [sourceList, setSourceList] = useState('custom');
+  // State for different view modes
+  const [viewMode, setViewMode] = useState('categories'); // 'categories' or 'custom'
   const [customSources, setCustomSources] = useState('');
   const [period, setPeriod] = useState('1d');
-  const [isCustom, setIsCustom] = useState(true);
-  const [selectedPredefinedSources, setSelectedPredefinedSources] = useState([]);
+  
+  // State for API data
+  const [categories, setCategories] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // State for selected sources
+  const [selectedSources, setSelectedSources] = useState([]);
 
+  // Fetch sources from API on component mount
   useEffect(() => {
-    setIsCustom(sourceList === 'custom');
-    if (sourceList !== 'custom') {
-      setSelectedPredefinedSources(PREDEFINED_SOURCES[sourceList] || []);
-    }
-  }, [sourceList]);
+    const fetchSources = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/sources');
+        if (!response.ok) {
+          throw new Error('Failed to fetch sources');
+        }
+        const data = await response.json();
+        setCategories(data.sources);
+      } catch (err) {
+        console.error('Error fetching sources:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleSourceListChange = (e) => {
-    setSourceList(e.target.value);
+    fetchSources();
+  }, []);
+
+  const handleViewModeChange = (e) => {
+    setViewMode(e.target.value);
   };
 
   const handleCustomSourcesChange = (e) => {
@@ -47,18 +49,28 @@ const Settings = ({ onFetchInsights }) => {
     setPeriod(e.target.value);
   };
 
+  const handleSourceToggle = (url) => {
+    setSelectedSources(prev => {
+      if (prev.includes(url)) {
+        return prev.filter(source => source !== url);
+      } else {
+        return [...prev, url];
+      }
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     
     let sources = [];
-    if (isCustom) {
+    if (viewMode === 'custom') {
       // Parse custom sources (comma-separated)
       sources = customSources
         .split(',')
         .map(source => source.trim())
         .filter(source => source.length > 0);
     } else {
-      sources = selectedPredefinedSources;
+      sources = selectedSources;
     }
     
     onFetchInsights({ period, sources });
@@ -68,66 +80,94 @@ const Settings = ({ onFetchInsights }) => {
     <div className="settings-section">
       <div className="card">
         <h2>News Settings</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <div className="form-control">
-              <label htmlFor="sourceList">Source Selection</label>
-              <select 
-                id="sourceList" 
-                value={sourceList} 
-                onChange={handleSourceListChange}
+        {loading ? (
+          <div className="loading-indicator">Loading sources...</div>
+        ) : error ? (
+          <div className="error-message">Error: {error}</div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="form-row">
+              <div className="form-control">
+                <label htmlFor="viewMode">Source Selection</label>
+                <select 
+                  id="viewMode" 
+                  value={viewMode} 
+                  onChange={handleViewModeChange}
+                >
+                  <option value="categories">Select from categories</option>
+                  <option value="custom">Enter custom sources</option>
+                </select>
+              </div>
+
+              <div className="form-control">
+                <label htmlFor="period">Time Period</label>
+                <select 
+                  id="period" 
+                  value={period} 
+                  onChange={handlePeriodChange}
+                >
+                  <option value="1d">Last 24 hours</option>
+                  <option value="2d">Last 2 days</option>
+                  <option value="1w">Last week</option>
+                </select>
+              </div>
+            </div>
+
+            {viewMode === 'custom' ? (
+              <div className="form-control">
+                <label htmlFor="customSources">
+                  Enter Telegram channels (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  id="customSources"
+                  value={customSources}
+                  onChange={handleCustomSourcesChange}
+                  placeholder="e.g., https://t.me/channel1, https://t.me/channel2"
+                />
+              </div>
+            ) : (
+              <div className="source-categories">
+                {Object.keys(categories).length === 0 ? (
+                  <p className="no-sources">No sources available in the database.</p>
+                ) : (
+                  Object.entries(categories).map(([category, sources]) => (
+                    <div key={category} className="source-category">
+                      <h3>{category}</h3>
+                      <div className="source-list-container">
+                        {sources.map(source => (
+                          <div key={source.id} className="source-item">
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedSources.includes(source.url)}
+                                onChange={() => handleSourceToggle(source.url)}
+                              />
+                              <span className="source-url">{source.url}</span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div className="selected-count">
+                  Selected sources: {selectedSources.length}
+                </div>
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+                disabled={viewMode === 'categories' && selectedSources.length === 0}
               >
-                <option value="custom">Custom Sources</option>
-                {Object.keys(PREDEFINED_SOURCES).map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
+                Run Analysis
+              </button>
             </div>
-
-            <div className="form-control">
-              <label htmlFor="period">Time Period</label>
-              <select 
-                id="period" 
-                value={period} 
-                onChange={handlePeriodChange}
-              >
-                <option value="1d">Last 24 hours</option>
-                <option value="2d">Last 2 days</option>
-                <option value="1w">Last week</option>
-              </select>
-            </div>
-          </div>
-
-          {isCustom ? (
-            <div className="form-control">
-              <label htmlFor="customSources">
-                Enter Telegram channels (comma-separated)
-              </label>
-              <input
-                type="text"
-                id="customSources"
-                value={customSources}
-                onChange={handleCustomSourcesChange}
-                placeholder="e.g., https://t.me/channel1, https://t.me/channel2"
-              />
-            </div>
-          ) : (
-            <div className="selected-sources">
-              <p>Selected sources ({selectedPredefinedSources.length}):</p>
-              <ul className="source-list">
-                {selectedPredefinedSources.map((source, index) => (
-                  <li key={index}>{source}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary">
-              Run Analysis
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
     </div>
   );

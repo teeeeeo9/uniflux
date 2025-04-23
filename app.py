@@ -65,9 +65,12 @@ def init_db():
             for source in telegram_sources:
                 source = source.strip()
                 if source:  # Skip empty strings
-                    cursor.execute("INSERT OR IGNORE INTO sources (url) VALUES (?)", (source,))
-            db.commit()
-            logger.info(f'Sources table populated with {len(telegram_sources)} sources from environment')
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO sources (url, category) VALUES (?, ?)",
+                        (source, 'Web3')
+                    )            
+                    db.commit()
+            logger.info(f'Sources table populated with categories')
         except sqlite3.Error as e:
             logger.error(f'Error populating sources table: {e}')
         
@@ -288,6 +291,46 @@ def get_insights():
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
         return jsonify({"error": str(e)}), 500
+
+@app.route('/sources', methods=['GET'])
+def get_sources():
+    """
+    API endpoint to retrieve all sources with their categories from the database.
+    
+    Returns:
+        A JSON list of sources grouped by category.
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, url, category FROM sources 
+                ORDER BY category, url
+                """
+            )
+            
+            sources = cursor.fetchall()
+            
+            # Group sources by category
+            categorized_sources = {}
+            for source in sources:
+                category = source['category']
+                if category not in categorized_sources:
+                    categorized_sources[category] = []
+                
+                categorized_sources[category].append({
+                    'id': source['id'],
+                    'url': source['url']
+                })
+            
+            return jsonify({"sources": categorized_sources}), 200
+            
+    except Exception as e:
+        error_message = f"Error retrieving sources: {str(e)}"
+        logger.error(error_message)
+        logger.error(traceback.format_exc())
+        return jsonify({"error": error_message}), 500
 
 if __name__ == '__main__':
     logger.info("Application starting up")
