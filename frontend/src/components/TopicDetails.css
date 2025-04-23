@@ -1,0 +1,225 @@
+.topic-details {
+  background-color: var(--card-background);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-top: 1.5rem;
+}
+
+.topic-details-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.topic-details-title {
+  font-size: 1.25rem;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.importance-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.importance-text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.importance-value {
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: white;
+}
+
+.topic-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #f8fafc;
+}
+
+.tab-button {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 1rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.tab-button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  background-color: white;
+}
+
+.topic-content {
+  padding: 1.5rem;
+}
+
+.content-subtitle {
+  font-size: 1.125rem;
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  color: var(--text-primary);
+}
+
+.no-content {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+/* Messages section styles */
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.message-item {
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  padding: 1rem;
+  background-color: #fbfbfb;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.message-id {
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.message-channel {
+  color: var(--text-secondary);
+}
+
+.message-text {
+  font-size: 0.9375rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Insights section styles */
+.insights-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.insight-block {
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  background-color: #fbfbfb;
+}
+
+.insight-title {
+  font-size: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.insight-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* Execution section styles */
+.execution-placeholder {
+  background-color: #f1f5f9;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  text-align: center;
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.execution-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.execution-option {
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  padding: 1.25rem;
+  background-color: #fbfbfb;
+  position: relative;
+}
+
+.option-title {
+  font-size: 1.0625rem;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.option-description {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.option-type {
+  display: inline-block;
+  background-color: #f1f5f9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+@media (max-width: 768px) {
+  .topic-details-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .importance-indicator {
+    margin-top: 0.75rem;
+  }
+  
+  .topic-tabs {
+    flex-direction: column;
+  }
+  
+  .tab-button {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    border-left: 3px solid transparent;
+  }
+  
+  .tab-button.active {
+    border-bottom-color: var(--border-color);
+    border-left-color: var(--primary-color);
+  }
+} 
