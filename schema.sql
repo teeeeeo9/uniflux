@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS link_summaries (
 CREATE TABLE IF NOT EXISTS sources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     url TEXT NOT NULL UNIQUE,
+    source_type TEXT NOT NULL DEFAULT 'telegram', -- Type of source: 'telegram', 'rss', etc.
     category TEXT DEFAULT 'Uncategorized',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

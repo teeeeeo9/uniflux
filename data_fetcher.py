@@ -6,6 +6,10 @@ import logging
 import sys
 import json
 from datetime import datetime, timezone, timedelta
+import feedparser  # For parsing RSS feeds
+import time
+import hashlib  # For generating unique IDs for RSS entries
+import requests
 from telethon import TelegramClient
 from telethon.tl.functions.messages import GetHistoryRequest
 from dotenv import load_dotenv
@@ -445,6 +449,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 message_ids = []
                 
                 # Extract summaries for each link in each message
+                # for message in messages[:1]:
                 for message in messages:
                     logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
                     
@@ -516,7 +521,7 @@ def get_messages_from_db(source_type, source_link, period="1d"):
     Retrieves messages from the database based on source type, source link, and time period.
     
     Args:
-        source_type: The type of source (e.g., 'telegram')
+        source_type: The type of source (e.g., 'telegram', 'rss')
         source_link: The source URL or identifier (e.g., 'https://t.me/channel')
         period: Time period to retrieve messages for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
         
@@ -525,14 +530,22 @@ def get_messages_from_db(source_type, source_link, period="1d"):
     """
     logger.info(f"Retrieving {period} messages for {source_type} source: {source_link}")
     
-    # Extract channel_id from source_link if it's a URL
+    # Extract channel_id from source_link depending on source type
     channel_id = source_link
-    if source_link.startswith("https://t.me/"):
+    if source_type == 'telegram' and source_link.startswith("https://t.me/"):
         parts = source_link.split('/')
         if len(parts) > 3:
             channel_id = parts[-1]
         elif len(parts) == 3 and parts[-1]:
             channel_id = parts[-1]
+    elif source_type == 'rss':
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(source_link)
+            channel_id = parsed_url.netloc
+        except Exception as e:
+            logger.warning(f"Could not parse RSS URL into channel ID, using full URL: {e}")
+            channel_id = source_link
     
     logger.debug(f"Using channel_id: {channel_id}")
     
@@ -587,6 +600,164 @@ def get_messages_from_db(source_type, source_link, period="1d"):
         logger.error(traceback.format_exc())
         return []
 
+async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_mode=False):
+    """
+    Fetches and parses an RSS feed from the given URL.
+
+    Args:
+        feed_url: URL of the RSS feed
+        time_range: Time range to fetch entries for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
+        enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
+        debug_mode: Whether to enable LiteLLM debug mode.
+
+    Returns:
+        A list of saved message IDs in the database.
+    """
+    logger.info(f"Fetching RSS feed from URL: {feed_url}")
+    
+    # Calculate time range based on parameter
+    now_utc = datetime.now(timezone.utc)
+    if time_range == "1w":
+        since_date_utc = now_utc - timedelta(days=7)
+        logger.info(f"Fetching RSS entries for the past week since: {since_date_utc.isoformat()}")
+    elif time_range == "2d":
+        since_date_utc = now_utc - timedelta(days=2)
+        logger.info(f"Fetching RSS entries for the past 2 days since: {since_date_utc.isoformat()}")
+    else:  # Default to "1d"
+        since_date_utc = now_utc - timedelta(hours=24)
+        logger.info(f"Fetching RSS entries for the past day since: {since_date_utc.isoformat()}")
+    
+    try:
+        # Parse the RSS feed
+        feed = feedparser.parse(feed_url)
+        if feed.bozo:
+            logger.error(f"Error parsing RSS feed {feed_url}: {feed.bozo_exception}")
+            return []
+        
+        logger.info(f"Successfully parsed RSS feed: {feed.feed.get('title', 'Untitled Feed')}")
+        logger.info(f"Total entries: {len(feed.entries)}")
+        # print(feed)
+        # print(feed.entries)
+        
+
+        # Extract channel ID from feed URL
+        # Use the domain name as channel ID
+        try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(feed_url)
+            channel_id = parsed_url.netloc
+            logger.info(f"Using {channel_id} as channel ID for RSS feed")
+        except Exception as e:
+            logger.warning(f"Could not parse URL into channel ID, using full URL: {e}")
+            channel_id = feed_url
+        
+        message_ids = []
+        
+        # Process each entry
+        # for entry in feed.entries[:1]:
+        for entry in feed.entries:
+            # Get entry date
+            entry_date = None
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                entry_date = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
+            elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
+                entry_date = datetime.fromtimestamp(time.mktime(entry.updated_parsed), tz=timezone.utc)
+            else:
+                # Use current time if no date is available
+                entry_date = now_utc
+                logger.warning(f"No date found for entry {entry.get('title', 'Untitled')}. Using current time.")
+            
+            # Skip entries older than the time range
+            if entry_date < since_date_utc:
+                logger.info(f"Skipping entry from {entry_date.isoformat()} as it's outside the time range")
+                continue
+            
+            # Generate a unique message ID for the RSS entry using hash of title and link
+            entry_id_str = f"{entry.get('title', '')}-{entry.get('link', '')}"
+            message_id = hashlib.md5(entry_id_str.encode()).hexdigest()
+            print(message_id)
+            
+            # Check if entry already exists in database
+            exists, msg_id = message_exists_in_db("rss", channel_id, message_id)
+            if exists:
+                logger.info(f"Entry already exists in database with ID: {msg_id}")
+                message_ids.append(msg_id)
+                continue
+            
+            # Prepare entry data
+            entry_data = {
+                'source_url': feed_url,
+                'source_type': 'rss',
+                'channel_id': channel_id,
+                'message_id': message_id,
+                'date': entry_date.isoformat(),
+                'data': f"{entry.get('title', 'Untitled')}\n\n{entry.get('summary', '')}\n\nLink: {entry.get('link', '')}",
+                'summarized_links_content': '{}'  # Empty JSON object
+            }
+            
+            # Extract links from entry
+            links = [entry.get('link')] if 'link' in entry else []
+            link_summaries = {}
+            
+            # Fetch summaries for each link
+            for link in links:
+                logger.info(f"Processing link: {link}")
+                try:
+                    logger.info(f"Extracting summary for link: {link}")
+                    summary_result = await extract_summary(link, enable_retries=enable_retries, debug_mode=debug_mode)
+                    logger.debug(f"Extraction result for {link}: {summary_result}")
+                    
+                    if summary_result["success"] == 1 and summary_result["content"]:
+                        logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                        link_summaries[link] = summary_result["content"]
+                        logger.debug(f"Full content for {link}: {summary_result['content']}")
+                    else:
+                        logger.warning(f"Failed to extract content for {link}")
+                        link_summaries[link] = "Failed to extract content"
+                except Exception as e:
+                    logger.error(f"Error extracting summary for {link}: {e}")
+                    logger.error(traceback.format_exc())
+                    link_summaries[link] = f"Error: {str(e)}"
+            
+            # Update entry data with link summaries
+            entry_data['summarized_links_content'] = json.dumps(link_summaries)
+            
+            # Save entry to database
+            msg_id = save_message_to_db(entry_data)
+            if msg_id:
+                message_ids.append(msg_id)
+        
+        logger.info(f"Saved {len(message_ids)} entries from RSS feed {feed_url} to database")
+        return message_ids
+    
+    except Exception as e:
+        logger.error(f"Error fetching RSS feed {feed_url}: {e}")
+        logger.error(traceback.format_exc())
+        return []
+
+async def fetch_rss_feeds(feed_urls, time_range="1d", enable_retries=False, debug_mode=False):
+    """
+    Fetches multiple RSS feeds and processes their entries.
+
+    Args:
+        feed_urls: A list of RSS feed URLs
+        time_range: Time range to fetch entries for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
+        enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
+        debug_mode: Whether to enable LiteLLM debug mode.
+
+    Returns:
+        A dictionary where keys are feed URLs and values are lists of saved message IDs.
+    """
+    logger.info(f"Fetching {len(feed_urls)} RSS feeds")
+    
+    feeds_data = {}
+    
+    for feed_url in feed_urls:
+        message_ids = await fetch_rss_feed(feed_url, time_range, enable_retries, debug_mode)
+        feeds_data[feed_url] = message_ids
+    
+    logger.info(f"Completed fetching all RSS feeds")
+    return feeds_data
 
 async def main():
     """
@@ -594,37 +765,55 @@ async def main():
     """
     logger.info("Starting main function")
     
-    # Get list of Telegram channels from database
-    channels = []
+    # Get list of sources from database
+    telegram_channels = []
+    rss_feeds = []
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT url 
+                SELECT url, source_type 
                 FROM sources 
                 """
             )
-            channels = [row['url'] for row in cursor.fetchall()]
-        if not channels:
-            logger.error("No active Telegram channels found in database")
+            for row in cursor.fetchall():
+                if row['source_type'] == 'rss':
+                    rss_feeds.append(row['url'])
+                else:  # Default to telegram
+                    telegram_channels.append(row['url'])
+                    
+        if not telegram_channels and not rss_feeds:
+            logger.error("No active sources found in database")
     except Exception as e:
-        logger.error(f"Error retrieving channels from database: {e}")
+        logger.error(f"Error retrieving sources from database: {e}")
         logger.error(traceback.format_exc())
     
-    logger.info(f"Channels to fetch: {channels}")
+    logger.info(f"Telegram channels to fetch: {telegram_channels}")
+    logger.info(f"RSS feeds to fetch: {rss_feeds}")
     
     # Time range: "1d" for 1 day or "1w" for 1 week
     time_range = "2d"
     
-    # Fetch messages from the channels, optionally enabling retries or debug mode
-    news_data = await fetch_telegram_messages(channels, time_range=time_range, enable_retries=False, debug_mode=False)
+    # # Fetch messages from Telegram channels
+    # if telegram_channels:
+    #     telegram_data = await fetch_telegram_messages(telegram_channels, time_range=time_range, enable_retries=False, debug_mode=False)
+        
+    #     # Print the results
+    #     for channel, message_ids in telegram_data.items():
+    #         logger.info(f"\nTelegram channel: {channel}")
+    #         logger.info(f"Number of messages saved to database: {len(message_ids)}")
+    #         logger.info(f"Message IDs: {message_ids}")
     
-    # Print the results
-    for channel, message_ids in news_data.items():
-        logger.info(f"\nChannel: {channel}")
-        logger.info(f"Number of messages saved to database: {len(message_ids)}")
-        logger.info(f"Message IDs: {message_ids}")
+    # Fetch RSS feeds
+    if rss_feeds:
+        rss_data = await fetch_rss_feeds(rss_feeds, time_range=time_range, enable_retries=False, debug_mode=False)
+        
+        # Print the results
+        for feed, message_ids in rss_data.items():
+            logger.info(f"\nRSS feed: {feed}")
+            logger.info(f"Number of entries saved to database: {len(message_ids)}")
+            logger.info(f"Message IDs: {message_ids}")
 
 if __name__ == "__main__":
     # Run the async main function

@@ -40,14 +40,7 @@ else
     echo "Log file $LOG_FILE not found, skipping."
 fi
 
-# Remove Telegram session file
-if [ -f "$TELEGRAM_SESSION.session" ]; then
-    echo "Removing Telegram session file $TELEGRAM_SESSION.session..."
-    rm "$TELEGRAM_SESSION.session"
-    echo "Telegram session file removed."
-else
-    echo "Telegram session file $TELEGRAM_SESSION.session not found, skipping."
-fi
+
 
 # Initialize the database
 echo "Initializing database for $ENV environment..."

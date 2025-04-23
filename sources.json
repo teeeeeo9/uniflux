@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "url": "https://t.me/CoinDeskGlobal",
+      "source_type": "telegram",
+      "category": "News"
+    },
+    {
+      "url": "https://cointelegraph.com/rss",
+      "source_type": "rss",
+      "category": "News"
+    }
+    
+
+  ]
+} 
