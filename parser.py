@@ -638,6 +638,7 @@ if __name__ == "__main__":
         url = 'https://cointelegraph.com/news/forget-bull-or-bear-bitcoin-s-in-a-new-era-says-market-analyst-james-check?utm_source=rss_feed&'
         url = 'https://cointelegraph.com/news/prosecutors-over-200-victim-impact-statements-in-alex-mashinsky?utm_source=rss_feed&utm_medium=rss&'
         url = 'https://cointelegraph.com/news/kucoin-crypto-exchange-enters-crowded-thailand-market?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound'
+        url = 'https://energywatch.com/EnergyNews/Utilities/article18111280.ece'
         
         
         logger.info(f"Processing URL: {url}")

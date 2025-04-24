@@ -113,6 +113,64 @@ def serialize_message(message, channel_url):
     logger.debug(f"Serialized message data: {message_data}")
     return message_data
 
+def identify_repetitive_links(messages, threshold=0.7):
+    """
+    Identifies links that appear repetitively across messages from the same channel.
+    
+    Args:
+        messages: List of serialized message objects with 'links' field
+        threshold: The proportion of messages a link must appear in to be considered repetitive
+                   (e.g., 0.7 means the link appears in 70% of messages)
+    
+    Returns:
+        A set of repetitive links
+    """
+    logger.debug(f"Identifying repetitive links across {len(messages)} messages")
+    
+    if not messages or len(messages) < 2:
+        logger.debug("Not enough messages to identify repetitive links")
+        return set()
+    
+    # Count occurrences of each link
+    link_counts = {}
+    for message in messages:
+        if 'links' in message and message['links']:
+            for link in message['links']:
+                link_counts[link] = link_counts.get(link, 0) + 1
+    
+    # Calculate the minimum number of occurrences needed to be considered repetitive
+    min_occurrences = max(2, int(len(messages) * threshold))
+    logger.debug(f"Minimum occurrences to be considered repetitive: {min_occurrences}")
+    
+    # Identify repetitive links
+    repetitive_links = {link for link, count in link_counts.items() if count >= min_occurrences}
+    logger.info(f"Identified {len(repetitive_links)} repetitive links: {repetitive_links}")
+    
+    return repetitive_links
+
+def filter_repetitive_links(message, repetitive_links):
+    """
+    Filters out repetitive links from a message.
+    
+    Args:
+        message: Serialized message object with 'links' field
+        repetitive_links: Set of links identified as repetitive
+    
+    Returns:
+        Updated message with repetitive links filtered out
+    """
+    if not repetitive_links or 'links' not in message or not message['links']:
+        return message
+    
+    original_links = message['links']
+    filtered_links = [link for link in original_links if link not in repetitive_links]
+    
+    if len(original_links) != len(filtered_links):
+        logger.debug(f"Filtered out {len(original_links) - len(filtered_links)} repetitive links from message {message.get('message_id', 'unknown')}")
+        message['links'] = filtered_links
+    
+    return message
+
 async def fetch_channel_messages_since(client, entity, since_date, channel_url, min_id=0):
     """Fetches messages from a Telegram channel since a given date.
 
@@ -448,56 +506,66 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 
                 message_ids = []
                 
+                # Identify repetitive links across all fetched messages
+                repetitive_links = identify_repetitive_links(messages)
+                
                 # Extract summaries for each link in each message
                 # for message in messages[:1]:
                 for message in messages:
-                    logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
-                    
-                    # Check if message already exists in database
-                    exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
-                    
-                    if exists:
-                        logger.info(f"Message already exists in database with ID: {msg_id}")
-                        message_ids.append(msg_id)
-                        continue
-                    
-                    for link in message["links"]:
-                        logger.info(f"Processing link: {link}")
-                        try:
-                            # Use the async extract_summary function with await
-                            logger.info(f"Extracting summary for link: {link}")
-                            
-                            # Implement progressive retries
-                            max_extraction_attempts = 3
-                            for attempt in range(max_extraction_attempts):
-                                summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
-                                logger.debug(f"Extraction result for {link}: {summary_result}")
+                    if 'ФБР: в 2024 году пожилые американцы старше 60 лет' in message['data']:
+                        logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
+                        
+                        # Check if message already exists in database
+                        exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
+                        
+                        if exists:
+                            logger.info(f"Message already exists in database with ID: {msg_id}")
+                            message_ids.append(msg_id)
+                            continue
+                        
+                        # Filter out repetitive links before processing
+                        message = filter_repetitive_links(message, repetitive_links)
+                        logger.info(f"After filtering repetitive links: {len(message['links'])} links remain")
+                        
+                        for link in message["links"]:
+                            logger.info(f"Processing link: {link}")
+                            try:
+                                # Use the async extract_summary function with await
+                                logger.info(f"Extracting summary for link: {link}")
                                 
-                                if summary_result["success"] == 1 and summary_result["content"]:
-                                    logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
-                                    message["link_summaries"][link] = summary_result["content"]
-                                    logger.debug(f"Full content for {link}: {summary_result['content']}")
-                                    break
-                                elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
-                                    # Special handling for Gemini error 499
-                                    if attempt < max_extraction_attempts - 1:
-                                        wait_time = 5 * (attempt + 1)  # Progressive backoff
-                                        logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
-                                        time.sleep(wait_time)
-                                    else:
-                                        logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
-                                        message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
-                                else:
-                                    # Other failure
-                                    logger.warning(f"Failed to extract content for {link}")
-                                    message["link_summaries"][link] = "Failed to extract content"
-                                    break
+                                # Implement progressive retries
+                                max_extraction_attempts = 3
+                                for attempt in range(max_extraction_attempts):
+                                    summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
+                                    logger.debug(f"Extraction result for {link}: {summary_result}")
                                     
-                        except Exception as e:
-                            logger.error(f"Error extracting summary for {link}: {e}")
-                            logger.error(traceback.format_exc())
-                            message["link_summaries"][link] = f"Error: {str(e)}"
-                    
+                                    if summary_result["success"] == 1 and summary_result["content"]:
+                                        logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                                        message["link_summaries"][link] = summary_result["content"]
+                                        logger.debug(f"Full content for {link}: {summary_result['content']}")
+                                        break
+                                    elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
+                                        # Special handling for Gemini error 499
+                                        if attempt < max_extraction_attempts - 1:
+                                            wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                            logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                            time.sleep(wait_time)
+                                        else:
+                                            logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
+                                            message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                                    else:
+                                        # Other failure
+                                        logger.warning(f"Failed to extract content for {link}")
+                                        message["link_summaries"][link] = "Failed to extract content"
+                                        break
+                                        
+                            except Exception as e:
+                                logger.error(f"Error extracting summary for {link}: {e}")
+                                logger.error(traceback.format_exc())
+                                message["link_summaries"][link] = f"Error: {str(e)}"
+                        break
+                            
+                        
                     # Prepare message data for saving
                     message_data = {
                         'source_url': message['source_url'],
@@ -670,6 +738,37 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
         
         message_ids = []
         
+        # Identify repetitive links across all entries by first collecting them
+        all_entries = []
+        for entry in feed.entries:
+            # Get entry date
+            entry_date = None
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                entry_date = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
+            elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
+                entry_date = datetime.fromtimestamp(time.mktime(entry.updated_parsed), tz=timezone.utc)
+            else:
+                # Use current time if no date is available
+                entry_date = now_utc
+                logger.warning(f"No date found for entry {entry.get('title', 'Untitled')}. Using current time.")
+            
+            # Skip entries older than the time range
+            if entry_date < since_date_utc:
+                continue
+            
+            # Create a serialized entry with links
+            links = [entry.get('link')] if 'link' in entry else []
+            serialized_entry = {
+                'id': entry.get('id', ''),
+                'title': entry.get('title', ''),
+                'links': links
+            }
+            all_entries.append(serialized_entry)
+        
+        # Identify repetitive links
+        repetitive_links = identify_repetitive_links(all_entries)
+        logger.info(f"Identified {len(repetitive_links)} repetitive links in RSS feed")
+        
         # Process each entry
         # for entry in feed.entries[:1]:
         for entry in feed.entries:
@@ -688,6 +787,16 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
             if entry_date < since_date_utc:
                 logger.info(f"Skipping entry from {entry_date.isoformat()} as it's outside the time range")
                 continue
+            
+            # Extract links from entry (must be done for each entry being processed)
+            links = [entry.get('link')] if 'link' in entry else []
+            
+            # Filter out repetitive links
+            original_links = links.copy()
+            links = [link for link in links if link not in repetitive_links]
+            if len(original_links) != len(links):
+                logger.debug(f"Filtered out {len(original_links) - len(links)} repetitive links from entry {entry.get('title', 'Untitled')}")
+            logger.info(f"After filtering repetitive links: {len(links)} links remain")
             
             # Generate a unique message ID for the RSS entry using hash of title and link
             entry_id_str = f"{entry.get('title', '')}-{entry.get('link', '')}"
@@ -713,7 +822,6 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
             }
             
             # Extract links from entry
-            links = [entry.get('link')] if 'link' in entry else []
             link_summaries = {}
             
             # Fetch summaries for each link
@@ -827,17 +935,17 @@ async def main():
     logger.info(f"RSS feeds to fetch: {rss_feeds}")
     
     # Time range: "1d" for 1 day or "1w" for 1 week
-    time_range = "1w"
+    time_range = "1d"
     
-    # # Fetch messages from Telegram channels
-    # if telegram_channels:
-    #     telegram_data = await fetch_telegram_messages(telegram_channels, time_range=time_range, enable_retries=False, debug_mode=False)
+    # Fetch messages from Telegram channels
+    if telegram_channels:
+        telegram_data = await fetch_telegram_messages(telegram_channels, time_range=time_range, enable_retries=False, debug_mode=False)
         
-    #     # Print the results
-    #     for channel, message_ids in telegram_data.items():
-    #         logger.info(f"\nTelegram channel: {channel}")
-    #         logger.info(f"Number of messages saved to database: {len(message_ids)}")
-    #         logger.info(f"Message IDs: {message_ids}")
+        # Print the results
+        for channel, message_ids in telegram_data.items():
+            logger.info(f"\nTelegram channel: {channel}")
+            logger.info(f"Number of messages saved to database: {len(message_ids)}")
+            logger.info(f"Message IDs: {message_ids}")
     
     # Fetch RSS feeds
     if rss_feeds:
