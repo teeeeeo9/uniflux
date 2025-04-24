@@ -162,12 +162,9 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
     logger.info("Configuring LLM extraction strategy")
     llm_strategy = LLMExtractionStrategy(
         llm_config = LLMConfig(provider="gemini/gemini-2.0-flash", api_token=os.getenv('GEMINI_API_KEY')),
-        # overlap_rate=0.1,
         schema=Article.schema_json(), # Or use model_json_schema()
         extraction_type="schema",
         instruction=instruction_text,
-        # chunk_token_threshold=1000,
-        # overlap_rate=0.0,
         apply_chunking=False,
         input_format="html",   # or "html", "fit_markdown"
         extra_args={"temperature": 0.0, "max_tokens": 2000}
@@ -210,28 +207,51 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                     data = json.loads(result.extracted_content)
                     logger.info(f"Extracted content: {format_json(data)}")
                     
-                    # Check if the content actually contains a Gemini API error message
-                    # This happens when the crawler successfully runs but Gemini returns an error
-                    gemini_error_found = False
+                    # Check if the content contains any error message 
+                    # This happens when the crawler successfully runs but there's an error in extraction
+                    extraction_error_found = False
+                    retry_for_error = False
+                    
                     if isinstance(data, list) and len(data) > 0:
                         for item in data:
                             if isinstance(item, dict) and item.get("error") is True:
                                 content = item.get("content", "")
+                                
+                                # Case 1: Check for Gemini API error 499
                                 if isinstance(content, str) and "GeminiException" in content and "code\": 499" in content and "The operation was cancelled" in content:
                                     logger.warning("Detected Gemini API error 499 in successful crawler response")
-                                    gemini_error_found = True
-                                    if gemini_retry_count < max_gemini_retries:
+                                    extraction_error_found = True
+                                    retry_for_error = gemini_retry_count < max_gemini_retries
+                                    if retry_for_error:
                                         gemini_retry_count += 1
                                         logger.warning(f"Gemini API error 499 (operation cancelled) encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
                                         logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
                                         time.sleep(gemini_retry_delay)
                                         gemini_retry_delay *= 2  # Exponential backoff
-                                        break
                                     else:
                                         logger.error(f"Exceeded maximum retries ({max_gemini_retries}) for Gemini API error 499")
+                                
+                                # Case 2: Check for 'list' object has no attribute 'usage' error
+                                elif isinstance(content, str) and "'list' object has no attribute 'usage'" in content:
+                                    logger.warning("Detected 'list' object has no attribute 'usage' error in successful crawler response")
+                                    extraction_error_found = True
+                                    retry_for_error = gemini_retry_count < max_gemini_retries
+                                    if retry_for_error:
+                                        gemini_retry_count += 1
+                                        logger.warning(f"'list' usage attribute error encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
+                                        logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
+                                        time.sleep(gemini_retry_delay)
+                                        gemini_retry_delay *= 2  # Exponential backoff
+                                    else:
+                                        logger.error(f"Exceeded maximum retries ({max_gemini_retries}) for 'list' usage attribute error")
+                                
+                                # Case 3: Any other error that might need retrying
+                                elif extraction_error_found == False:
+                                    logger.warning(f"Detected unknown error in successful crawler response: {content}")
+                                    extraction_error_found = True
                     
-                    # If Gemini error was found and we still have retries left, try again
-                    if gemini_error_found and gemini_retry_count < max_gemini_retries:
+                    # If a retryable error was found and we still have retries left, try again
+                    if extraction_error_found and retry_for_error:
                         continue
                     
                     # Add the URL to the result for use in the processing function
@@ -242,7 +262,14 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                             if isinstance(item, dict):
                                 item["url"] = url
                     
-                    llm_strategy.show_usage()
+                    # Safely show usage stats if available - wrap in try/except to catch any attribute errors
+                    try:
+                        llm_strategy.show_usage()
+                    except AttributeError as e:
+                        logger.warning(f"Could not show usage statistics: {str(e)}")
+                    except Exception as e:
+                        logger.warning(f"Unexpected error showing usage statistics: {str(e)}")
+                    
                     return data
                 else:
                     logger.error(f"Crawl failed for URL: {url}")
@@ -266,9 +293,19 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                     logger.error(f"Exceeded maximum retries ({max_gemini_retries}) for Gemini API error")
                 return {"error": f"Gemini API error: {error_str}"}
         except Exception as e:
-            logger.error(f"Exception during crawl for URL {url}: {str(e)}")
-            logger.error(traceback.format_exc())
-            return {"error": str(e)}
+            error_str = str(e)
+            # Check for the 'list' object has no attribute 'usage' error
+            if "'list' object has no attribute 'usage'" in error_str and gemini_retry_count < max_gemini_retries:
+                gemini_retry_count += 1
+                logger.warning(f"'list' usage attribute error encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
+                logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
+                time.sleep(gemini_retry_delay)
+                gemini_retry_delay *= 2  # Exponential backoff
+                continue  # Try again
+            else:
+                logger.error(f"Exception during crawl for URL {url}: {str(e)}")
+                logger.error(traceback.format_exc())
+                return {"error": str(e)}
 
 def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
     """
@@ -291,18 +328,39 @@ def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
     success = 0
     
     try:
-        # First check for specific Gemini API error 499 patterns
+        # Check for specific error patterns in list results
         if isinstance(result, list):
+            # Case 1: Check for Gemini API error 499
             gemini_error_items = []
+            usage_error_items = []
+            general_error_items = []
+            
             for item in result:
                 if isinstance(item, dict) and item.get("error") is True:
                     content = item.get("content", "")
-                    if isinstance(content, str) and "GeminiException" in content and "code\": 499" in content:
-                        gemini_error_items.append(item)
+                    if isinstance(content, str):
+                        if "GeminiException" in content and "code\": 499" in content:
+                            gemini_error_items.append(item)
+                        elif "'list' object has no attribute 'usage'" in content:
+                            usage_error_items.append(item)
+                        else:
+                            general_error_items.append(item)
             
+            # Handle Gemini API error 499
             if len(gemini_error_items) > 0 and len(gemini_error_items) == len(result):
                 logger.warning(f"All items in result list contain Gemini API error 499")
                 return {"success": 0, "content": "", "error": "Gemini API error 499 (operation cancelled)"}
+            
+            # Handle 'list' usage attribute error
+            if len(usage_error_items) > 0 and len(usage_error_items) == len(result):
+                logger.warning(f"All items in result list contain 'list' usage attribute error")
+                return {"success": 0, "content": "", "error": "Error: 'list' object has no attribute 'usage'"}
+            
+            # Handle general errors when all items have errors
+            if len(general_error_items) > 0 and len(general_error_items) + len(gemini_error_items) + len(usage_error_items) == len(result):
+                error_message = general_error_items[0].get("content", "Unknown error")
+                logger.warning(f"All items in result list contain errors. First error: {error_message}")
+                return {"success": 0, "content": "", "error": f"Error: {error_message}"}
         
         # Handle JSON array format (from schema extraction)
         if isinstance(result, list):
@@ -538,6 +596,9 @@ if __name__ == "__main__":
         url = 'https://cointelegraph.com/news/revolut-doubles-profit-user-growth-crypto-trading?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound'
         url = 'https://cointelegraph.com/news/forget-bull-or-bear-bitcoin-s-in-a-new-era-says-market-analyst-james-check?utm_source=rss_feed&'
         url = 'https://cointelegraph.com/news/prosecutors-over-200-victim-impact-statements-in-alex-mashinsky?utm_source=rss_feed&utm_medium=rss&'
+        url = 'https://cointelegraph.com/news/kucoin-crypto-exchange-enters-crowded-thailand-market?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound'
+        
+        
         logger.info(f"Processing URL: {url}")
         
         instruction_type = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_INSTRUCTION
