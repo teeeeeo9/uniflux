@@ -512,59 +512,57 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 # Extract summaries for each link in each message
                 # for message in messages[:1]:
                 for message in messages:
-                    if 'ФБР: в 2024 году пожилые американцы старше 60 лет' in message['data']:
-                        logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
-                        
-                        # Check if message already exists in database
-                        exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
-                        
-                        if exists:
-                            logger.info(f"Message already exists in database with ID: {msg_id}")
-                            message_ids.append(msg_id)
-                            continue
-                        
-                        # Filter out repetitive links before processing
-                        message = filter_repetitive_links(message, repetitive_links)
-                        logger.info(f"After filtering repetitive links: {len(message['links'])} links remain")
-                        
-                        for link in message["links"]:
-                            logger.info(f"Processing link: {link}")
-                            try:
-                                # Use the async extract_summary function with await
-                                logger.info(f"Extracting summary for link: {link}")
-                                
-                                # Implement progressive retries
-                                max_extraction_attempts = 3
-                                for attempt in range(max_extraction_attempts):
-                                    summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
-                                    logger.debug(f"Extraction result for {link}: {summary_result}")
-                                    
-                                    if summary_result["success"] == 1 and summary_result["content"]:
-                                        logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
-                                        message["link_summaries"][link] = summary_result["content"]
-                                        logger.debug(f"Full content for {link}: {summary_result['content']}")
-                                        break
-                                    elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
-                                        # Special handling for Gemini error 499
-                                        if attempt < max_extraction_attempts - 1:
-                                            wait_time = 5 * (attempt + 1)  # Progressive backoff
-                                            logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
-                                            time.sleep(wait_time)
-                                        else:
-                                            logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
-                                            message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
-                                    else:
-                                        # Other failure
-                                        logger.warning(f"Failed to extract content for {link}")
-                                        message["link_summaries"][link] = "Failed to extract content"
-                                        break
-                                        
-                            except Exception as e:
-                                logger.error(f"Error extracting summary for {link}: {e}")
-                                logger.error(traceback.format_exc())
-                                message["link_summaries"][link] = f"Error: {str(e)}"
-                        break
+                    logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
+                    
+                    # Check if message already exists in database
+                    exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
+                    
+                    if exists:
+                        logger.info(f"Message already exists in database with ID: {msg_id}")
+                        message_ids.append(msg_id)
+                        continue
+                    
+                    # Filter out repetitive links before processing
+                    message = filter_repetitive_links(message, repetitive_links)
+                    logger.info(f"After filtering repetitive links: {len(message['links'])} links remain")
+                    
+                    for link in message["links"]:
+                        logger.info(f"Processing link: {link}")
+                        try:
+                            # Use the async extract_summary function with await
+                            logger.info(f"Extracting summary for link: {link}")
                             
+                            # Implement progressive retries
+                            max_extraction_attempts = 3
+                            for attempt in range(max_extraction_attempts):
+                                summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
+                                logger.debug(f"Extraction result for {link}: {summary_result}")
+                                
+                                if summary_result["success"] == 1 and summary_result["content"]:
+                                    logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                                    message["link_summaries"][link] = summary_result["content"]
+                                    logger.debug(f"Full content for {link}: {summary_result['content']}")
+                                    break
+                                elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
+                                    # Special handling for Gemini error 499
+                                    if attempt < max_extraction_attempts - 1:
+                                        wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                        logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                        time.sleep(wait_time)
+                                    else:
+                                        logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
+                                        message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                                else:
+                                    # Other failure
+                                    logger.warning(f"Failed to extract content for {link}")
+                                    message["link_summaries"][link] = "Failed to extract content"
+                                    break
+                                    
+                        except Exception as e:
+                            logger.error(f"Error extracting summary for {link}: {e}")
+                            logger.error(traceback.format_exc())
+                            message["link_summaries"][link] = f"Error: {str(e)}"
+                        
                         
                     # Prepare message data for saving
                     message_data = {
