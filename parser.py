@@ -126,6 +126,136 @@ def save_summary_to_db(url: str, summary_content: str) -> bool:
             logger.info("Closing database connection")
             conn.close()
 
+# Define a global variable to track last API call time for rate limiting
+_last_api_call_time = 0
+_api_rate_limit_delay = 4  # seconds between API calls
+
+def _respect_rate_limit():
+    """
+    Helper function to implement rate limiting.
+    Sleeps if needed to ensure minimum delay between API calls.
+    """
+    global _last_api_call_time
+    current_time = time.time()
+    time_since_last_call = current_time - _last_api_call_time
+    
+    if time_since_last_call < _api_rate_limit_delay and _last_api_call_time > 0:
+        sleep_time = _api_rate_limit_delay - time_since_last_call
+        logger.info(f"Rate limiting: Waiting {sleep_time:.2f} seconds before next API call")
+        time.sleep(sleep_time)
+    
+    _last_api_call_time = time.time()
+
+async def extract_summary(url: str, enable_retries: bool = False, debug_mode: bool = False) -> Dict[str, Any]:
+    """
+    Asynchronous function to extract summary from a URL with optional retry logic.
+    First checks if the summary exists in the database before attempting to fetch it.
+    
+    Args:
+        url: The URL to extract content from
+        enable_retries: Whether to enable retry logic (up to 5 attempts) or just make a single attempt
+        debug_mode: Whether to enable LiteLLM debug mode
+        
+    Returns:
+        A dictionary with:
+        - success: 1 if successful, 0 if error
+        - content: The extracted content as a string
+    """
+    logger.info(f"Starting extract_summary for URL: {url}")
+    logger.info(f"Retry enabled: {enable_retries}, Debug mode: {debug_mode}")
+    
+    # First, try to get the summary from the database
+    db_result = get_summary_from_db(url)
+    if db_result:
+        logger.info(f"Found existing summary in database for URL: {url}")
+        if "content" in db_result and db_result["content"]:
+            return {"success": 1, "content": db_result["content"]}
+        else:
+            logger.warning(f"Database entry for {url} has invalid format")
+            return {"success": 0, "content": ""}
+    
+    # If not in database, proceed with web extraction
+    instruction_type = 'summary'
+    logger.info(f"No summary in database, proceeding with web extraction using instruction type: {instruction_type}")
+    
+    # Apply rate limiting before extraction
+    _respect_rate_limit()
+    
+    # If retries are not enabled, just make a single attempt with browser retry
+    if not enable_retries:
+        try:
+            logger.info(f"Making extraction attempt for URL: {url}")
+            # Use the new wrapper function instead of direct call
+            result = await extract_with_browser_retry(url, instruction_type, debug_mode)
+            logger.info(f"Extraction completed for URL: {url}")
+            logger.info(f"Extraction result: {format_json(result)}")
+            
+            # Process the result to extract content
+            processed_result = process_extraction_result(result, url)
+            logger.info(f"Processed result: {format_json(processed_result)}")
+            
+            # If we got content, return it
+            if processed_result["success"] == 1 and processed_result["content"]:
+                return processed_result
+                
+            # If the error was a Gemini API error but we still got partial content,
+            # the processing step above would have handled it
+            
+            # If we have no content but no error either, this is strange
+            if "error" not in result:
+                logger.warning(f"No content extracted but no error reported for URL: {url}")
+                
+            return processed_result
+            
+        except Exception as e:
+            logger.error(f"Exception during extraction for URL {url}: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {"success": 0, "content": ""}
+    
+    # With retries enabled, use the retry logic
+    max_attempts = 5
+    backoff_time = 1  # Initial backoff time in seconds
+    
+    logger.info(f"Making up to {max_attempts} extraction attempts for URL: {url}")
+    
+    for attempt in range(max_attempts):
+        try:
+            logger.info(f"Attempt {attempt+1} of {max_attempts} to extract summary from {url}")
+            
+            # Apply rate limiting before each attempt
+            if attempt > 0:
+                _respect_rate_limit()
+                
+            # Use the new wrapper function instead of direct call
+            result = await extract_with_browser_retry(url, instruction_type, debug_mode)
+            logger.info(f"Extraction result on attempt {attempt+1}: {format_json(result)}")
+            
+            # Process the result
+            processed_result = process_extraction_result(result, url)
+            
+            # If successful, return the processed result
+            if processed_result["success"] == 1 and processed_result["content"]:
+                logger.info(f"Successfully extracted content on attempt {attempt+1}")
+                return processed_result
+                
+            # If we got a result but it was not valid, retry if we have attempts left
+            if attempt < max_attempts - 1:
+                logger.info(f"Invalid result on attempt {attempt+1}, retrying in {backoff_time} seconds")
+                time.sleep(backoff_time)
+                backoff_time *= 1.5  # Exponential backoff
+                
+        except Exception as e:
+            logger.error(f"Exception on attempt {attempt+1}: {str(e)}")
+            logger.error(traceback.format_exc())
+            if attempt < max_attempts - 1:
+                logger.info(f"Retrying in {backoff_time} seconds")
+                time.sleep(backoff_time)
+                backoff_time *= 1.5
+    
+    # If we've exhausted all attempts
+    logger.error(f"Failed to extract content after {max_attempts} attempts for URL: {url}")
+    return {"success": 0, "content": ""}
+
 async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_INSTRUCTION, debug_mode: bool = False) -> Dict[str, Any]:
     """
     Extract a summary from a given URL using specified instruction type.
@@ -141,6 +271,9 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
     logger.info(f"Extracting summary from URL: {url}")
     logger.info(f"Using instruction type: {instruction_type}")
     logger.info(f"Debug mode: {debug_mode}")
+    
+    # Apply rate limiting
+    _respect_rate_limit()
     
     # Enable debug mode if requested
     if debug_mode:
@@ -252,6 +385,8 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                     
                     # If a retryable error was found and we still have retries left, try again
                     if extraction_error_found and retry_for_error:
+                        # Apply rate limiting before retry
+                        _respect_rate_limit()
                         continue
                     
                     # Add the URL to the result for use in the processing function
@@ -284,6 +419,8 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                 logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
                 time.sleep(gemini_retry_delay)
                 gemini_retry_delay *= 2  # Exponential backoff
+                # Apply rate limiting before retry
+                _respect_rate_limit() 
                 continue  # Try again
             else:
                 # Either it's a different error or we've exceeded retries
@@ -301,6 +438,8 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                 logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
                 time.sleep(gemini_retry_delay)
                 gemini_retry_delay *= 2  # Exponential backoff
+                # Apply rate limiting before retry
+                _respect_rate_limit()
                 continue  # Try again
             else:
                 logger.error(f"Exception during crawl for URL {url}: {str(e)}")
@@ -446,6 +585,10 @@ async def extract_with_browser_retry(url: str, instruction_type: str, debug_mode
     max_browser_retries = 3
     for retry_num in range(max_browser_retries):
         try:
+            # Apply rate limiting before each retry attempt after the first one
+            if retry_num > 0:
+                _respect_rate_limit()
+                
             result = await extract_summary_from_link(url, instruction_type, debug_mode)
             
             # Check for the specific browser error
@@ -478,108 +621,6 @@ async def extract_with_browser_retry(url: str, instruction_type: str, debug_mode
     
     # This should not happen but just in case
     return {"error": "Exhausted all browser retries with no success"}
-
-async def extract_summary(url: str, enable_retries: bool = False, debug_mode: bool = False) -> Dict[str, Any]:
-    """
-    Asynchronous function to extract summary from a URL with optional retry logic.
-    First checks if the summary exists in the database before attempting to fetch it.
-    
-    Args:
-        url: The URL to extract content from
-        enable_retries: Whether to enable retry logic (up to 5 attempts) or just make a single attempt
-        debug_mode: Whether to enable LiteLLM debug mode
-        
-    Returns:
-        A dictionary with:
-        - success: 1 if successful, 0 if error
-        - content: The extracted content as a string
-    """
-    logger.info(f"Starting extract_summary for URL: {url}")
-    logger.info(f"Retry enabled: {enable_retries}, Debug mode: {debug_mode}")
-    
-    # First, try to get the summary from the database
-    db_result = get_summary_from_db(url)
-    if db_result:
-        logger.info(f"Found existing summary in database for URL: {url}")
-        if "content" in db_result and db_result["content"]:
-            return {"success": 1, "content": db_result["content"]}
-        else:
-            logger.warning(f"Database entry for {url} has invalid format")
-            return {"success": 0, "content": ""}
-    
-    # If not in database, proceed with web extraction
-    instruction_type = 'summary'
-    logger.info(f"No summary in database, proceeding with web extraction using instruction type: {instruction_type}")
-    
-    # If retries are not enabled, just make a single attempt with browser retry
-    if not enable_retries:
-        try:
-            logger.info(f"Making extraction attempt for URL: {url}")
-            # Use the new wrapper function instead of direct call
-            result = await extract_with_browser_retry(url, instruction_type, debug_mode)
-            logger.info(f"Extraction completed for URL: {url}")
-            logger.info(f"Extraction result: {format_json(result)}")
-            
-            # Process the result to extract content
-            processed_result = process_extraction_result(result, url)
-            logger.info(f"Processed result: {format_json(processed_result)}")
-            
-            # If we got content, return it
-            if processed_result["success"] == 1 and processed_result["content"]:
-                return processed_result
-                
-            # If the error was a Gemini API error but we still got partial content,
-            # the processing step above would have handled it
-            
-            # If we have no content but no error either, this is strange
-            if "error" not in result:
-                logger.warning(f"No content extracted but no error reported for URL: {url}")
-                
-            return processed_result
-            
-        except Exception as e:
-            logger.error(f"Exception during extraction for URL {url}: {str(e)}")
-            logger.error(traceback.format_exc())
-            return {"success": 0, "content": ""}
-    
-    # With retries enabled, use the retry logic
-    max_attempts = 5
-    backoff_time = 1  # Initial backoff time in seconds
-    
-    logger.info(f"Making up to {max_attempts} extraction attempts for URL: {url}")
-    
-    for attempt in range(max_attempts):
-        try:
-            logger.info(f"Attempt {attempt+1} of {max_attempts} to extract summary from {url}")
-            # Use the new wrapper function instead of direct call
-            result = await extract_with_browser_retry(url, instruction_type, debug_mode)
-            logger.info(f"Extraction result on attempt {attempt+1}: {format_json(result)}")
-            
-            # Process the result
-            processed_result = process_extraction_result(result, url)
-            
-            # If successful, return the processed result
-            if processed_result["success"] == 1 and processed_result["content"]:
-                logger.info(f"Successfully extracted content on attempt {attempt+1}")
-                return processed_result
-                
-            # If we got a result but it was not valid, retry if we have attempts left
-            if attempt < max_attempts - 1:
-                logger.info(f"Invalid result on attempt {attempt+1}, retrying in {backoff_time} seconds")
-                time.sleep(backoff_time)
-                backoff_time *= 1.5  # Exponential backoff
-                
-        except Exception as e:
-            logger.error(f"Exception on attempt {attempt+1}: {str(e)}")
-            logger.error(traceback.format_exc())
-            if attempt < max_attempts - 1:
-                logger.info(f"Retrying in {backoff_time} seconds")
-                time.sleep(backoff_time)
-                backoff_time *= 1.5
-    
-    # If we've exhausted all attempts
-    logger.error(f"Failed to extract content after {max_attempts} attempts for URL: {url}")
-    return {"success": 0, "content": ""}
 
 if __name__ == "__main__":
     # Example usage
