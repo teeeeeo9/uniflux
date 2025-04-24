@@ -188,40 +188,87 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
         browser_type="firefox",
         )
 
-    try:
-        logger.info(f"Starting crawl for URL: {url}")
-        async with AsyncWebCrawler(config=browser_cfg) as crawler:
-            # 4. Crawl the page
-            logger.info("Executing crawler run")
-            result = await crawler.arun(
-                url=url,
-                config=crawl_config
-            )
+    # Define retry parameters for Gemini API errors
+    max_gemini_retries = 3
+    gemini_retry_delay = 2  # seconds
+    gemini_retry_count = 0
 
-            if result.success:
-                # 5. Return the extracted content
-                logger.info(f"Crawl successful for URL: {url}")
-                data = json.loads(result.extracted_content)
-                logger.info(f"Extracted content: {format_json(data)}")
-                
-                # Add the URL to the result for use in the processing function
-                if isinstance(data, dict):
-                    data["url"] = url
-                elif isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict):
-                            item["url"] = url
-                
-                llm_strategy.show_usage()
-                return data
+    while True:
+        try:
+            logger.info(f"Starting crawl for URL: {url}")
+            async with AsyncWebCrawler(config=browser_cfg) as crawler:
+                # 4. Crawl the page
+                logger.info("Executing crawler run")
+                result = await crawler.arun(
+                    url=url,
+                    config=crawl_config
+                )
+
+                if result.success:
+                    # 5. Return the extracted content
+                    logger.info(f"Crawl successful for URL: {url}")
+                    data = json.loads(result.extracted_content)
+                    logger.info(f"Extracted content: {format_json(data)}")
+                    
+                    # Check if the content actually contains a Gemini API error message
+                    # This happens when the crawler successfully runs but Gemini returns an error
+                    gemini_error_found = False
+                    if isinstance(data, list) and len(data) > 0:
+                        for item in data:
+                            if isinstance(item, dict) and item.get("error") is True:
+                                content = item.get("content", "")
+                                if isinstance(content, str) and "GeminiException" in content and "code\": 499" in content and "The operation was cancelled" in content:
+                                    logger.warning("Detected Gemini API error 499 in successful crawler response")
+                                    gemini_error_found = True
+                                    if gemini_retry_count < max_gemini_retries:
+                                        gemini_retry_count += 1
+                                        logger.warning(f"Gemini API error 499 (operation cancelled) encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
+                                        logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
+                                        time.sleep(gemini_retry_delay)
+                                        gemini_retry_delay *= 2  # Exponential backoff
+                                        break
+                                    else:
+                                        logger.error(f"Exceeded maximum retries ({max_gemini_retries}) for Gemini API error 499")
+                    
+                    # If Gemini error was found and we still have retries left, try again
+                    if gemini_error_found and gemini_retry_count < max_gemini_retries:
+                        continue
+                    
+                    # Add the URL to the result for use in the processing function
+                    if isinstance(data, dict):
+                        data["url"] = url
+                    elif isinstance(data, list):
+                        for item in data:
+                            if isinstance(item, dict):
+                                item["url"] = url
+                    
+                    llm_strategy.show_usage()
+                    return data
+                else:
+                    logger.error(f"Crawl failed for URL: {url}")
+                    logger.error(f"Error message: {result.error_message}")
+                    return {"error": result.error_message}
+        except litellm.APIConnectionError as e:
+            error_str = str(e)
+            # Check if it's the specific Gemini error 499 (operation cancelled)
+            if "code\": 499" in error_str and "The operation was cancelled" in error_str and gemini_retry_count < max_gemini_retries:
+                gemini_retry_count += 1
+                logger.warning(f"Gemini API error 499 (operation cancelled) encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
+                logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
+                time.sleep(gemini_retry_delay)
+                gemini_retry_delay *= 2  # Exponential backoff
+                continue  # Try again
             else:
-                logger.error(f"Crawl failed for URL: {url}")
-                logger.error(f"Error message: {result.error_message}")
-                return {"error": result.error_message}
-    except Exception as e:
-        logger.error(f"Exception during crawl for URL {url}: {str(e)}")
-        logger.error(traceback.format_exc())
-        return {"error": str(e)}
+                # Either it's a different error or we've exceeded retries
+                logger.error(f"Gemini API error: {error_str}")
+                
+                if gemini_retry_count >= max_gemini_retries:
+                    logger.error(f"Exceeded maximum retries ({max_gemini_retries}) for Gemini API error")
+                return {"error": f"Gemini API error: {error_str}"}
+        except Exception as e:
+            logger.error(f"Exception during crawl for URL {url}: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {"error": str(e)}
 
 def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
     """
@@ -244,6 +291,19 @@ def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
     success = 0
     
     try:
+        # First check for specific Gemini API error 499 patterns
+        if isinstance(result, list):
+            gemini_error_items = []
+            for item in result:
+                if isinstance(item, dict) and item.get("error") is True:
+                    content = item.get("content", "")
+                    if isinstance(content, str) and "GeminiException" in content and "code\": 499" in content:
+                        gemini_error_items.append(item)
+            
+            if len(gemini_error_items) > 0 and len(gemini_error_items) == len(result):
+                logger.warning(f"All items in result list contain Gemini API error 499")
+                return {"success": 0, "content": "", "error": "Gemini API error 499 (operation cancelled)"}
+        
         # Handle JSON array format (from schema extraction)
         if isinstance(result, list):
             # Filter items where error is false
@@ -289,6 +349,12 @@ def process_extraction_result(result: Any, url: str = None) -> Dict[str, Any]:
             if final_content:
                 success = 1
         
+        # Handle explicit error case
+        elif isinstance(result, dict) and result.get("error"):
+            error_msg = result.get("error")
+            logger.warning(f"Result contains explicit error: {error_msg}")
+            return {"success": 0, "content": "", "error": error_msg}
+        
         # Save the final content to the database if we have content and a URL
         if success == 1 and final_content and url:
             logger.info(f"Saving final processed content to database for URL: {url}")
@@ -332,6 +398,11 @@ async def extract_with_browser_retry(url: str, instruction_type: str, debug_mode
                     continue
                 else:
                     logger.error(f"Exhausted all {max_browser_retries} browser retries for URL: {url}")
+            
+            # Check for Gemini API error - we already handled retries in extract_summary_from_link
+            if isinstance(result, dict) and isinstance(result.get("error"), str) and "Gemini API error" in result.get("error", ""):
+                logger.info("Gemini API error already handled in extract_summary_from_link, passing through")
+                return result
             
             # If we reach here, either no error or we're out of retries
             return result
@@ -394,6 +465,18 @@ async def extract_summary(url: str, enable_retries: bool = False, debug_mode: bo
             # Process the result to extract content
             processed_result = process_extraction_result(result, url)
             logger.info(f"Processed result: {format_json(processed_result)}")
+            
+            # If we got content, return it
+            if processed_result["success"] == 1 and processed_result["content"]:
+                return processed_result
+                
+            # If the error was a Gemini API error but we still got partial content,
+            # the processing step above would have handled it
+            
+            # If we have no content but no error either, this is strange
+            if "error" not in result:
+                logger.warning(f"No content extracted but no error reported for URL: {url}")
+                
             return processed_result
             
         except Exception as e:
@@ -452,8 +535,9 @@ if __name__ == "__main__":
         # url = 'https://thedefiant.io/news/markets/five-fartcoin-holders-generate-nearly-usd9-million-in-profits-as-token-rallies'
         url = 'https://www.coindesk.com/markets/2025/04/19/trump-s-official-memecoin-surges-despite-massive-usd320-million-unlock-in-thin-holiday-trading'
         url = 'https://www.coindesk.com/markets/2025/04/20/xrp-resembles-a-compressed-spring-poised-for-a-significant-move-as-key-volatility-indicator-mirrors-late-2024-pattern'
-
-        
+        url = 'https://cointelegraph.com/news/revolut-doubles-profit-user-growth-crypto-trading?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound'
+        url = 'https://cointelegraph.com/news/forget-bull-or-bear-bitcoin-s-in-a-new-era-says-market-analyst-james-check?utm_source=rss_feed&'
+        url = 'https://cointelegraph.com/news/prosecutors-over-200-victim-impact-statements-in-alex-mashinsky?utm_source=rss_feed&utm_medium=rss&'
         logger.info(f"Processing URL: {url}")
         
         instruction_type = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_INSTRUCTION

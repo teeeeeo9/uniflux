@@ -466,16 +466,33 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                         try:
                             # Use the async extract_summary function with await
                             logger.info(f"Extracting summary for link: {link}")
-                            summary_result = await extract_summary(link, enable_retries=enable_retries, debug_mode=debug_mode)
-                            logger.debug(f"Extraction result for {link}: {summary_result}")
                             
-                            if summary_result["success"] == 1 and summary_result["content"]:
-                                logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
-                                message["link_summaries"][link] = summary_result["content"]
-                                logger.debug(f"Full content for {link}: {summary_result['content']}")
-                            else:
-                                logger.warning(f"Failed to extract content for {link}")
-                                message["link_summaries"][link] = "Failed to extract content"
+                            # Implement progressive retries
+                            max_extraction_attempts = 3
+                            for attempt in range(max_extraction_attempts):
+                                summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
+                                logger.debug(f"Extraction result for {link}: {summary_result}")
+                                
+                                if summary_result["success"] == 1 and summary_result["content"]:
+                                    logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                                    message["link_summaries"][link] = summary_result["content"]
+                                    logger.debug(f"Full content for {link}: {summary_result['content']}")
+                                    break
+                                elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
+                                    # Special handling for Gemini error 499
+                                    if attempt < max_extraction_attempts - 1:
+                                        wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                        logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                        time.sleep(wait_time)
+                                    else:
+                                        logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
+                                        message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                                else:
+                                    # Other failure
+                                    logger.warning(f"Failed to extract content for {link}")
+                                    message["link_summaries"][link] = "Failed to extract content"
+                                    break
+                                    
                         except Exception as e:
                             logger.error(f"Error extracting summary for {link}: {e}")
                             logger.error(traceback.format_exc())
@@ -704,16 +721,33 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                 logger.info(f"Processing link: {link}")
                 try:
                     logger.info(f"Extracting summary for link: {link}")
-                    summary_result = await extract_summary(link, enable_retries=enable_retries, debug_mode=debug_mode)
-                    logger.debug(f"Extraction result for {link}: {summary_result}")
                     
-                    if summary_result["success"] == 1 and summary_result["content"]:
-                        logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
-                        link_summaries[link] = summary_result["content"]
-                        logger.debug(f"Full content for {link}: {summary_result['content']}")
-                    else:
-                        logger.warning(f"Failed to extract content for {link}")
-                        link_summaries[link] = "Failed to extract content"
+                    # Implement progressive retries
+                    max_extraction_attempts = 3
+                    for attempt in range(max_extraction_attempts):
+                        summary_result = await extract_summary(link, enable_retries=(attempt > 0), debug_mode=debug_mode)
+                        logger.debug(f"Extraction result for {link}: {summary_result}")
+                        
+                        if summary_result["success"] == 1 and summary_result["content"]:
+                            logger.info(f"Successfully extracted content for {link}, length: {len(summary_result['content'])}")
+                            link_summaries[link] = summary_result["content"]
+                            logger.debug(f"Full content for {link}: {summary_result['content']}")
+                            break
+                        elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
+                            # Special handling for Gemini error 499
+                            if attempt < max_extraction_attempts - 1:
+                                wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                time.sleep(wait_time)
+                            else:
+                                logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
+                                link_summaries[link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                        else:
+                            # Other failure
+                            logger.warning(f"Failed to extract content for {link}")
+                            link_summaries[link] = "Failed to extract content"
+                            break
+                        
                 except Exception as e:
                     logger.error(f"Error extracting summary for {link}: {e}")
                     logger.error(traceback.format_exc())
@@ -793,7 +827,7 @@ async def main():
     logger.info(f"RSS feeds to fetch: {rss_feeds}")
     
     # Time range: "1d" for 1 day or "1w" for 1 week
-    time_range = "2d"
+    time_range = "1w"
     
     # # Fetch messages from Telegram channels
     # if telegram_channels:
