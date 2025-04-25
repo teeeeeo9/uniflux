@@ -19,6 +19,8 @@ if [ "$1" == "dev" ]; then
     echo "Switching to development environment..."
     # Update the ENV line in the .env file
     sed -i 's/^ENV=.*/ENV=development/' $ENV_FILE
+    # Export the variable to the current shell
+    export ENV=development
     echo "Environment switched to development"
     echo "Database: sources_dev.db"
     echo "Log file: log_dev.log"
@@ -37,6 +39,8 @@ elif [ "$1" == "prod" ]; then
     
     # Update the ENV line in the .env file
     sed -i 's/^ENV=.*/ENV=production/' $ENV_FILE
+    # Export the variable to the current shell
+    export ENV=production
     echo "Environment switched to production"
     echo "Database: sources.db"
     echo "Log file: log.log" 
@@ -47,4 +51,5 @@ else
     exit 1
 fi
 
-echo "Done. You can run 'python config.py' to verify the current configuration." 
+echo "Done. You can run 'python config.py' to verify the current configuration."
+echo "Current shell ENV variable: $ENV" 

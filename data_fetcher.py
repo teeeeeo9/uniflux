@@ -439,12 +439,6 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
     Returns:
         A dictionary where keys are the original channel identifiers and values are lists of
         message IDs in the database.
-        Example:
-        {
-            "https://t.me/channel1": [1, 2, 3],
-            "https://t.me/channel2": [4, 5],
-            ...
-        }
     """
     logger.info(f"Starting to fetch messages from {len(channels)} Telegram channels")
     logger.debug(f"Channels to fetch: {channels}")
@@ -455,6 +449,8 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
         return {}
         
     news_data = {}
+    total_channels = len(channels)
+    current_channel = 0
 
     try:
         if not client.is_connected():
@@ -475,6 +471,9 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
 
         for original_identifier in channels:
+            current_channel += 1
+            logger.info(f"[Progress: {current_channel}/{total_channels} channels] Processing {original_identifier}")
+            
             channel_identifier = original_identifier
             if original_identifier.startswith("https://t.me/"):
                 parts = original_identifier.split('/')
@@ -505,14 +504,16 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                     messages = await fetch_channel_messages_since(client, entity, since_date_utc, original_identifier)
                 
                 message_ids = []
+                total_messages = len(messages)
+                current_message = 0
                 
                 # Identify repetitive links across all fetched messages
                 repetitive_links = identify_repetitive_links(messages)
                 
                 # Extract summaries for each link in each message
-                # for message in messages[:1]:
                 for message in messages:
-                    logger.info(f"Processing message ID {message['message_id']} with {len(message['links'])} links")
+                    current_message += 1
+                    logger.info(f"[Progress: {current_channel}/{total_channels} channels, {current_message}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
                     
                     # Check if message already exists in database
                     exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
@@ -620,8 +621,6 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
     finally:
         logger.debug("Disconnecting Telegram client")
         await client.disconnect()
-
-
 
 def get_messages_from_db(source_type, source_link, period="1d"):
     """
@@ -743,9 +742,6 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
         
         logger.info(f"Successfully parsed RSS feed: {feed.feed.get('title', 'Untitled Feed')}")
         logger.info(f"Total entries: {len(feed.entries)}")
-        # print(feed)
-        # print(feed.entries)
-        
 
         # Extract channel ID from feed URL
         # Use the domain name as channel ID
@@ -792,8 +788,13 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
         logger.info(f"Identified {len(repetitive_links)} repetitive links in RSS feed")
         
         # Process each entry
-        # for entry in feed.entries[:1]:
+        total_entries = len(feed.entries)
+        current_entry = 0
+        
         for entry in feed.entries:
+            current_entry += 1
+            logger.info(f"[Progress: {current_entry}/{total_entries} entries] Processing entry: {entry.get('title', 'Untitled')}")
+            
             # Get entry date
             entry_date = None
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
@@ -823,7 +824,6 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
             # Generate a unique message ID for the RSS entry using hash of title and link
             entry_id_str = f"{entry.get('title', '')}-{entry.get('link', '')}"
             message_id = hashlib.md5(entry_id_str.encode()).hexdigest()
-            print(message_id)
             
             # Check if entry already exists in database
             exists, msg_id = message_exists_in_db("rss", channel_id, message_id)
@@ -847,8 +847,12 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
             link_summaries = {}
             
             # Fetch summaries for each link
+            total_links = len(links)
+            current_link = 0
+            
             for link in links:
-                logger.info(f"Processing link: {link}")
+                current_link += 1
+                logger.info(f"[Progress: {current_entry}/{total_entries} entries, {current_link}/{total_links} links] Processing link: {link}")
                 try:
                     logger.info(f"Extracting summary for link: {link}")
                     

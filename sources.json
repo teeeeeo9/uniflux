@@ -1,20 +1,94 @@
 {
   "sources": [
     {
+      "url": "https://t.me/CoinDeskGlobal",
+      "source_type": "telegram",
+      "category": "Crypto"
+    },
+    {
+      "url": "https://cointelegraph.com/rss",
+      "source_type": "rss",
+      "category": "Crypto"
+    },
+    {
+      "url": "https://www.theguardian.com/world/rss",
+      "source_type": "rss",
+      "category": "General"
+    },
+    {
+      "url": "https://www.ft.com/news-feed?format=rss",
+      "source_type": "rss",
+      "category": "General"
+    },
+    {
+      "url": "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",
+      "source_type": "rss",
+      "category": "Financial Markets & Economy"
+    },
+    {
+      "url": "https://www.economist.com/finance-and-economics/rss.xml",
+      "source_type": "rss",
+      "category": "Financial Markets & Economy"
+    },
+    {
       "url": "https://t.me/the_block_crypto",
       "source_type": "telegram",
       "category": "Crypto"
     },
     {
-      "url": "https://t.me/CoinDeskGlobal",
+      "url": "https://t.me/CryptoWorldNews",
       "source_type": "telegram",
+      "category": "Crypto"
+    },
+    {
+      "url": "https://t.me/cryptoslatenews",
+      "source_type": "telegram",
+      "category": "Crypto"
+    },
+    {
+      "url": "https://rekt.news/rss/feed.xml",
+      "source_type": "rss",
       "category": "Crypto"
     },
     {
       "url": "https://t.me/defiprime",
       "source_type": "telegram",
       "category": "Crypto"
-    }     
-    
+    },
+    {
+      "url": "https://techcrunch.com/feed/",
+      "source_type": "rss",
+      "category": "Technology"
+    },
+    {
+      "url": "https://www.wired.com/feed/category/business/latest/rss",
+      "source_type": "rss",
+      "category": "Technology"
+    },
+    {
+      "url": "https://www.wired.com/feed/tag/ai/latest/rss",
+      "source_type": "rss",
+      "category": "Technology"
+    },
+    {
+      "url": "https://rss-feed-api.aws.jyllands-posten.dk/energywatch.eu/latest",
+      "source_type": "rss",
+      "category": "Energy and commodities"
+    },
+    {
+      "url": "https://www.gasworld.com/rss/feed/4410925e09e6c04c21f0007dcf079cb3/",
+      "source_type": "rss",
+      "category": "Energy and commodities"
+    },
+    {
+      "url": "https://www.agri-pulse.com/rss/topic/71-news",
+      "source_type": "rss",
+      "category": "Agriculture"
+    },
+    {
+      "url": "https://www.agri-pulse.com/rss/topic/21767-economy",
+      "source_type": "rss",
+      "category": "Agriculture"
+    }
   ]
 } 
