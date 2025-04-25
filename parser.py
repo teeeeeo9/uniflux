@@ -334,6 +334,8 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                     config=crawl_config
                 )
 
+                logger.warning(f"Result: {result.success}")
+
                 if result.success:
                     # 5. Return the extracted content
                     logger.info(f"Crawl successful for URL: {url}")
@@ -412,8 +414,39 @@ async def extract_summary_from_link(url: str, instruction_type: str = DEFAULT_IN
                     return {"error": result.error_message}
         except litellm.APIConnectionError as e:
             error_str = str(e)
+            
+            # For rate limit errors, extract the retry delay from the response if available
+            if "RESOURCE_EXHAUSTED" in error_str and "code\": 429" in error_str and gemini_retry_count < max_gemini_retries:
+                gemini_retry_count += 1
+                
+                # Try to extract the recommended retry delay
+                retry_delay_match = None
+                try:
+                    # Look for retryDelay in the response
+                    if "retryDelay" in error_str:
+                        import re
+                        retry_delay_match = re.search(r'"retryDelay":\s*"(\d+)s"', error_str)
+                except Exception:
+                    logger.warning("Failed to parse retry delay from error response")
+                
+                # Use the recommended delay if available, otherwise use our default
+                if retry_delay_match:
+                    extracted_delay = int(retry_delay_match.group(1))
+                    logger.warning(f"Gemini API rate limit error encountered. Using recommended retry delay of {extracted_delay}s. Retry {gemini_retry_count}/{max_gemini_retries}")
+                    gemini_retry_delay = extracted_delay
+                else:
+                    logger.warning(f"Gemini API rate limit error encountered. Using default retry delay of {gemini_retry_delay}s. Retry {gemini_retry_count}/{max_gemini_retries}")
+                    gemini_retry_delay *= 2  # Exponential backoff if we couldn't extract the value
+                
+                logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")
+                time.sleep(gemini_retry_delay)
+                
+                # Apply rate limiting before retry
+                _respect_rate_limit() 
+                continue  # Try again
+            
             # Check if it's the specific Gemini error 499 (operation cancelled)
-            if "code\": 499" in error_str and "The operation was cancelled" in error_str and gemini_retry_count < max_gemini_retries:
+            elif "code\": 499" in error_str and "The operation was cancelled" in error_str and gemini_retry_count < max_gemini_retries:
                 gemini_retry_count += 1
                 logger.warning(f"Gemini API error 499 (operation cancelled) encountered. Retry {gemini_retry_count}/{max_gemini_retries}")
                 logger.warning(f"Waiting {gemini_retry_delay} seconds before retrying...")

@@ -543,21 +543,45 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                                     message["link_summaries"][link] = summary_result["content"]
                                     logger.debug(f"Full content for {link}: {summary_result['content']}")
                                     break
-                                elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
-                                    # Special handling for Gemini error 499
-                                    if attempt < max_extraction_attempts - 1:
+                                elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", ""):
+                                    error_msg = summary_result.get("error", "")
+                                    
+                                    # Handle rate limit errors (code 429)
+                                    if "RESOURCE_EXHAUSTED" in error_msg and "code\": 429" in error_msg and attempt < max_extraction_attempts - 1:
+                                        # Try to extract the recommended retry delay
+                                        retry_delay_match = None
+                                        try:
+                                            if "retryDelay" in error_msg:
+                                                import re
+                                                retry_delay_match = re.search(r'"retryDelay":\s*"(\d+)s"', error_msg)
+                                        except Exception:
+                                            logger.warning("Failed to parse retry delay from error response")
+                                        
+                                        # Use the recommended delay if available, otherwise use our default
+                                        if retry_delay_match:
+                                            wait_time = int(retry_delay_match.group(1))
+                                            logger.warning(f"Gemini API rate limit error encountered. Using recommended retry delay of {wait_time}s. Retry {attempt+1}/{max_extraction_attempts}")
+                                        else:
+                                            wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                            logger.warning(f"Gemini API rate limit error encountered. Using default retry delay of {wait_time}s. Retry {attempt+1}/{max_extraction_attempts}")
+                                        
+                                        logger.warning(f"Waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                        time.sleep(wait_time)
+                                    # Handle operation cancelled errors (code 499)
+                                    elif "code\": 499" in error_msg and "The operation was cancelled" in error_msg and attempt < max_extraction_attempts - 1:
                                         wait_time = 5 * (attempt + 1)  # Progressive backoff
                                         logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
                                         time.sleep(wait_time)
                                     else:
-                                        logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
-                                        message["link_summaries"][link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                                        # Either different error or exceeded retries
+                                        logger.error(f"Failed to extract content after {attempt+1} attempts due to Gemini API error: {error_msg}")
+                                        message["link_summaries"][link] = f"Failed to extract content: {error_msg}"
                                 else:
                                     # Other failure
                                     logger.warning(f"Failed to extract content for {link}")
                                     message["link_summaries"][link] = "Failed to extract content"
                                     break
-                                    
+                                
                         except Exception as e:
                             logger.error(f"Error extracting summary for {link}: {e}")
                             logger.error(traceback.format_exc())
@@ -839,15 +863,39 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                             link_summaries[link] = summary_result["content"]
                             logger.debug(f"Full content for {link}: {summary_result['content']}")
                             break
-                        elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", "") and "code\": 499" in summary_result.get("error", ""):
-                            # Special handling for Gemini error 499
-                            if attempt < max_extraction_attempts - 1:
+                        elif "error" in summary_result and "Gemini API error: " in summary_result.get("error", ""):
+                            error_msg = summary_result.get("error", "")
+                            
+                            # Handle rate limit errors (code 429)
+                            if "RESOURCE_EXHAUSTED" in error_msg and "code\": 429" in error_msg and attempt < max_extraction_attempts - 1:
+                                # Try to extract the recommended retry delay
+                                retry_delay_match = None
+                                try:
+                                    if "retryDelay" in error_msg:
+                                        import re
+                                        retry_delay_match = re.search(r'"retryDelay":\s*"(\d+)s"', error_msg)
+                                except Exception:
+                                    logger.warning("Failed to parse retry delay from error response")
+                                
+                                # Use the recommended delay if available, otherwise use our default
+                                if retry_delay_match:
+                                    wait_time = int(retry_delay_match.group(1))
+                                    logger.warning(f"Gemini API rate limit error encountered. Using recommended retry delay of {wait_time}s. Retry {attempt+1}/{max_extraction_attempts}")
+                                else:
+                                    wait_time = 5 * (attempt + 1)  # Progressive backoff
+                                    logger.warning(f"Gemini API rate limit error encountered. Using default retry delay of {wait_time}s. Retry {attempt+1}/{max_extraction_attempts}")
+                                
+                                logger.warning(f"Waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
+                                time.sleep(wait_time)
+                            # Handle operation cancelled errors (code 499)
+                            elif "code\": 499" in error_msg and "The operation was cancelled" in error_msg and attempt < max_extraction_attempts - 1:
                                 wait_time = 5 * (attempt + 1)  # Progressive backoff
                                 logger.warning(f"Gemini API error 499 encountered, waiting {wait_time}s before retry {attempt+1}/{max_extraction_attempts}")
                                 time.sleep(wait_time)
                             else:
-                                logger.error(f"Failed to extract content after {max_extraction_attempts} attempts due to Gemini API error 499")
-                                link_summaries[link] = "Failed to extract content: Gemini API error 499 (operation cancelled)"
+                                # Either different error or exceeded retries
+                                logger.error(f"Failed to extract content after {attempt+1} attempts due to Gemini API error: {error_msg}")
+                                link_summaries[link] = f"Failed to extract content: {error_msg}"
                         else:
                             # Other failure
                             logger.warning(f"Failed to extract content for {link}")

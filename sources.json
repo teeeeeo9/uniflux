@@ -1,10 +1,20 @@
 {
   "sources": [
     {
-      "url": "https://t.me/forklog",
+      "url": "https://t.me/the_block_crypto",
       "source_type": "telegram",
       "category": "Crypto"
-    }
+    },
+    {
+      "url": "https://t.me/CoinDeskGlobal",
+      "source_type": "telegram",
+      "category": "Crypto"
+    },
+    {
+      "url": "https://t.me/defiprime",
+      "source_type": "telegram",
+      "category": "Crypto"
+    }     
     
   ]
 } 
