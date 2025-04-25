@@ -9,12 +9,14 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTopicIndex, setSelectedTopicIndex] = useState(null);
+  const [loadingStep, setLoadingStep] = useState(null); // Track which step is loading
 
   const fetchInsights = async (settings) => {
     setLoading(true);
     setError(null);
     setSelectedTopicIndex(null);
     setSummary(null);
+    setLoadingStep('summaries');
     
     try {
       // Build query parameters
@@ -23,10 +25,10 @@ function App() {
         ...(settings.sources.length > 0 && { sources: settings.sources.join(',') })
       }).toString();
 
-      console.log(`Fetching from: /insights?${queryParams}`);
+      console.log(`Fetching summaries from: /summaries?${queryParams}`);
       
-      // Make the API request with more detailed error handling
-      const response = await fetch(`/insights?${queryParams}`, {
+      // Step 1: Fetch summaries
+      const summariesResponse = await fetch(`/summaries?${queryParams}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -34,32 +36,73 @@ function App() {
         }
       });
       
-      // Handle non-OK responses
-      if (!response.ok) {
-        // Try to get error details from response
-        let errorMsg = `Server error: ${response.status}`;
+      // Handle non-OK summaries response
+      if (!summariesResponse.ok) {
+        let errorMsg = `Server error fetching summaries: ${summariesResponse.status}`;
         try {
-          const errorData = await response.json();
+          const errorData = await summariesResponse.json();
           if (errorData && errorData.error) {
             errorMsg = errorData.error;
           }
         } catch (e) {
-          // If we can't parse JSON, use text content if available
-          const text = await response.text();
+          const text = await summariesResponse.text();
           if (text) errorMsg += ` - ${text}`;
         }
         throw new Error(errorMsg);
       }
       
-      // Parse the JSON response
-      const data = await response.json();
-      console.log('API response:', data);
-      setSummary(data);
+      // Parse the summaries response
+      const summariesData = await summariesResponse.json();
+      console.log('Summaries response:', summariesData);
+      
+      // Check if we have valid summaries
+      if (!summariesData.topics || summariesData.topics.length === 0) {
+        console.log('No topics found in summaries');
+        setSummary({ topics: [] });
+        setLoading(false);
+        return;
+      }
+      
+      // Step 2: Get insights for the summaries
+      setLoadingStep('insights');
+      console.log('Fetching insights for summaries');
+      
+      const insightsResponse = await fetch('/insights', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(summariesData)
+      });
+      
+      // Handle non-OK insights response
+      if (!insightsResponse.ok) {
+        let errorMsg = `Server error fetching insights: ${insightsResponse.status}`;
+        try {
+          const errorData = await insightsResponse.json();
+          if (errorData && errorData.error) {
+            errorMsg = errorData.error;
+          }
+        } catch (e) {
+          const text = await insightsResponse.text();
+          if (text) errorMsg += ` - ${text}`;
+        }
+        throw new Error(errorMsg);
+      }
+      
+      // Parse the insights response
+      const insightsData = await insightsResponse.json();
+      console.log('Insights response:', insightsData);
+      
+      // Set the final data with insights
+      setSummary(insightsData);
     } catch (err) {
-      console.error('Error fetching insights:', err);
-      setError(err.message || 'An error occurred while fetching insights');
+      console.error('Error in pipeline:', err);
+      setError(err.message || 'An error occurred while processing news data');
     } finally {
       setLoading(false);
+      setLoadingStep(null);
     }
   };
 
@@ -85,7 +128,11 @@ function App() {
         {/* Top section - Settings */}
         <Settings onFetchInsights={fetchInsights} />
         
-        {loading && <div className="loading">Loading insights...</div>}
+        {loading && (
+          <div className="loading">
+            {loadingStep === 'summaries' ? 'Generating summaries...' : 'Generating insights...'}
+          </div>
+        )}
         {error && (
           <div className="error">
             <h3>Error</h3>

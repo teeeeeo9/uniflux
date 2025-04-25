@@ -175,14 +175,93 @@ def run_async(func):
             pass
     return wrapper
 
-@app.route('/insights', methods=['GET'])
-async def get_insights():
+@app.route('/summaries', methods=['GET'])
+async def get_summaries():
     """
-    API endpoint to generate summaries and actionable insights based on time period and sources.
+    API endpoint to generate summaries based on time period and sources.
     
     Query Parameters:
     - period: Time period to analyze ('1d', '2d', '1w')
     - sources: Comma-separated list of source URLs to filter by (optional)
+    
+    Response Format (JSON):
+    {
+        "topics": [
+            {
+                "topic": "Topic Name",
+                "summary": "Detailed summary...",
+                "message_ids": [1, 2, 3],
+                "importance": 8
+            },
+            ...
+        ]
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /summaries - IP: {user_ip}")
+    
+    # Get query parameters
+    period = request.args.get('period', '1d')
+    sources_str = request.args.get('sources', '')
+    sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
+    
+    logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
+    
+    try:
+        # Generate summaries with direct await
+        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
+        summaries = await process_and_aggregate_news(period, sources)
+        
+        if not summaries:
+            logger.warning(f"PROCESS [{request_id}] - No summaries generated")
+            return jsonify({"topics": []}), 200
+        
+        # Log detailed result information
+        logger.info(f"RESPONSE [{request_id}] - Generated {len(summaries)} topics")
+        
+        # Create and log the response
+        response = {"topics": summaries}
+        logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
+        
+        return jsonify(response), 200
+    
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to process summaries request: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/insights', methods=['POST'])
+async def get_insights():
+    """
+    API endpoint to generate actionable insights based on provided summaries.
+    
+    Request Format (JSON):
+    {
+        "topics": [
+            {
+                "topic": "Topic Name",
+                "summary": "Detailed summary...",
+                "message_ids": [1, 2, 3],
+                "importance": 8
+            },
+            ...
+        ]
+    }
     
     Response Format (JSON):
     {
@@ -216,28 +295,24 @@ async def get_insights():
     
     logger.info(f"REQUEST [{request_id}] - /insights - IP: {user_ip}")
     
-    # Get query parameters
-    period = request.args.get('period', '1d')
-    sources_str = request.args.get('sources', '')
-    sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
-    
-    logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
-    
     try:
-        # Generate summaries with direct await
-        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
-        summaries = await process_and_aggregate_news(period, sources)
-        
-        if not summaries:
-            logger.warning(f"PROCESS [{request_id}] - No summaries generated")
-            return jsonify({"topics": []}), 200
+        # Get JSON data from request body
+        data = request.get_json()
+        if not data or 'topics' not in data:
+            return jsonify({"error": "Invalid request body. 'topics' field is required."}), 400
+            
+        summaries = data['topics']
+        if not summaries or not isinstance(summaries, list):
+            return jsonify({"error": "Invalid 'topics' field. Expected a non-empty array."}), 400
+            
+        logger.info(f"REQUEST [{request_id}] - Processing {len(summaries)} topics for insights")
         
         # Generate insights for each topic with direct await
         logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
         topics_with_insights = await generate_insights(summaries)
         
         # Log detailed result information
-        logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")
+        logger.info(f"RESPONSE [{request_id}] - Generated insights for {len(topics_with_insights)} topics")
         
         # Create and log the response
         response = {"topics": topics_with_insights}
@@ -301,6 +376,91 @@ async def get_sources():
         logger.error(error_message)
         logger.error(traceback.format_exc())
         return jsonify({"error": error_message}), 500
+
+# Legacy endpoint for compatibility
+@app.route('/insights', methods=['GET'])
+async def get_insights_legacy():
+    """
+    Legacy API endpoint that combines both summary and insights generation.
+    This is maintained for backward compatibility.
+    
+    Query Parameters:
+    - period: Time period to analyze ('1d', '2d', '1w')
+    - sources: Comma-separated list of source URLs to filter by (optional)
+    
+    Response Format (JSON):
+    {
+        "topics": [
+            {
+                "topic": "Topic Name",
+                "summary": "Detailed summary...",
+                "message_ids": [1, 2, 3],
+                "importance": 8,
+                "insights": {
+                    "general": "...",
+                    "long": "...",
+                    "exec_options_long": [
+                        {"text": "...", "description": "...", "type": "defi"}
+                    ],
+                    "short": "...",
+                    "neutral": "..."
+                }
+            },
+            ...
+        ]
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /insights (legacy GET) - IP: {user_ip}")
+    
+    # Get query parameters
+    period = request.args.get('period', '1d')
+    sources_str = request.args.get('sources', '')
+    sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
+    
+    logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
+    
+    try:
+        # Generate summaries with direct await
+        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
+        summaries = await process_and_aggregate_news(period, sources)
+        
+        if not summaries:
+            logger.warning(f"PROCESS [{request_id}] - No summaries generated")
+            return jsonify({"topics": []}), 200
+        
+        # Generate insights for each topic with direct await
+        logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
+        topics_with_insights = await generate_insights(summaries)
+        
+        # Log detailed result information
+        logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")
+        
+        # Create and log the response
+        response = {"topics": topics_with_insights}
+        logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
+        
+        return jsonify(response), 200
+    
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to process insights request: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     logger.info("Application starting up")

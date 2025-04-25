@@ -188,8 +188,19 @@ const Settings = ({ onFetchInsights }) => {
                 className="btn btn-primary"
                 disabled={viewMode === 'categories' && selectedSources.length === 0}
               >
-                Run Analysis
+                Generate Insights
               </button>
+              <div className="process-steps">
+                <div className="step">
+                  <span className="step-number">1</span>
+                  <span className="step-name">Generate Summaries</span>
+                </div>
+                <div className="step-arrow">→</div>
+                <div className="step">
+                  <span className="step-number">2</span>
+                  <span className="step-name">Generate Insights</span>
+                </div>
+              </div>
             </div>
           </form>
         )}

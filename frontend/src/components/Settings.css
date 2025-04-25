@@ -19,9 +19,72 @@
 }
 
 .form-actions {
-  margin-top: 1.5rem;
+  margin-top: 20px;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: center;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-primary:disabled {
+  background-color: var(--color-disabled);
+  cursor: not-allowed;
+}
+
+/* Process steps styling */
+.process-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 15px;
+  width: 100%;
+  font-size: 14px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 4px;
+  background-color: var(--color-card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: white;
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.step-arrow {
+  margin: 0 15px;
+  color: var(--color-text-muted);
+  font-weight: bold;
 }
 
 .loading-indicator, .error-message, .no-sources {
@@ -129,9 +192,25 @@
 }
 
 @media (max-width: 768px) {
+  .settings-section {
+    padding: 15px 10px;
+  }
+  
   .form-row {
     flex-direction: column;
-    gap: 0;
+  }
+  
+  .form-control {
+    width: 100%;
+    margin-bottom: 15px;
+  }
+  
+  .source-categories {
+    padding: 10px;
+  }
+  
+  .source-category {
+    flex-basis: 100%;
   }
   
   .source-list-container {
