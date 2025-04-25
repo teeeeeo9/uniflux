@@ -12,6 +12,7 @@ import os
 import traceback
 from dotenv import load_dotenv
 from config import DATABASE, LOG_FILE
+from instruction_templates import INSTRUCTIONS
 
 
 # Load environment variables
@@ -198,36 +199,13 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
         
         if prompt_type == "initial":
             logger.debug("Using initial summarization prompt")
-            prompt = f"""
-            Analyze the following crypto news messages and create a summary that:
-            1. Identifies key topics/themes
-            2. Provides a concise summary for each topic
-            3. Assigns an importance score (1-10) to each topic based on potential impact
-            
-            Format your response as a JSON array with objects containing:
-            - "topic": Short name for the topic
-            - "summary": Detailed summary
-            - "message_ids": List of message IDs related to this topic
-            - "importance": Numeric score from 1-10
-            
-            Here are the messages to analyze:
-            
-            {text_content}
-            """
+            prompt = INSTRUCTIONS["initial_summarization"].format(text_content=text_content)
         else:  # incremental
             logger.debug("Using incremental summarization prompt")
-            prompt = f"""
-            Here is the current summary of crypto news topics:
-            
-            {text_content['current_summary']}
-            
-            Now analyze these additional messages and update the summary:
-            
-            {text_content['new_messages']}
-            
-            Keep the same JSON format as before, but merge topics that are related,
-            update existing topics with new information, and add new topics as needed.
-            """
+            prompt = INSTRUCTIONS["incremental_summarization"].format(
+                current_summary=text_content['current_summary'],
+                new_messages=text_content['new_messages']
+            )
         
         logger.debug("Sending request to Gemini API")
         # Use the request-specific client instead of the global one
@@ -358,8 +336,6 @@ async def generate_insights(summary_data):
         List of topics with added insights
     """
     logger.info(f"Generating insights for {len(summary_data)} topics")
-    
-    from instruction_templates import INSTRUCTIONS
     
     insights_prompt_template = INSTRUCTIONS["financial_insights"]
     enhanced_summaries = []
