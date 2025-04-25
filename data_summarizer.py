@@ -40,6 +40,8 @@ logger.info("Data summarizer module initializing")
 # Configure Gemini API
 # genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
 client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+GEMINI_MODEL_SUMMARIZER = os.getenv('GEMINI_MODEL_SUMMARIZER', 'gemini-1.5-pro')  # Default to gemini-1.5-pro if not specified
+GEMINI_MODEL_INSIGHTS = os.getenv('GEMINI_MODEL_INSIGHTS', 'gemini-1.5-pro')  # Default to gemini-1.5-pro if not specified
 
 logger.info("Gemini API configured")
 
@@ -230,7 +232,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
         logger.debug("Sending request to Gemini API")
         # Use the request-specific client instead of the global one
         response = await request_client.aio.models.generate_content(
-            model='gemini-2.0-flash', contents=prompt
+            model=GEMINI_MODEL_SUMMARIZER, contents=prompt
         )
         logger.debug("Received response from Gemini API")
         
@@ -376,7 +378,7 @@ async def generate_insights(summary_data):
             
             # Use Gemini to generate insights
             response = await client.aio.models.generate_content(
-                model='gemini-2.0-flash', contents=prompt
+                model=GEMINI_MODEL_INSIGHTS, contents=prompt
             )
             logger.debug("Received response from Gemini API")
             
@@ -434,7 +436,7 @@ async def main(period='1d', sources=None, include_insights=False):
             logger.warning("No results generated from summarization")
         else:
             logger.info(f"Generated {len(result)} topic summaries")
-            
+             
             # Generate insights if requested
             if include_insights:
                 logger.info("Generating insights for topics")
