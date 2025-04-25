@@ -199,7 +199,7 @@ if __name__ == "__main__":
         # delete_message_by_id()
         
         # List messages from the messages table
-        list_messages(10)  # Limit to 10 messages, remove the parameter to show all
+        list_messages()  # Limit to 10 messages, remove the parameter to show all
         
         # # Allow interactive search
         # search_term = input("\nEnter a term to search in URLs (or press Enter to skip): ")
