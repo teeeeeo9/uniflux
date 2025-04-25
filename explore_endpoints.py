@@ -1,9 +1,38 @@
 # explore_endpoints.py
 import requests
 import json
+import sqlite3
+from config import DATABASE
 
 # Define the base URL of your backend (adjust if your app is running on a different port or address)
 BASE_URL = "http://127.0.0.1:5000"  # Default Flask development server address
+
+def get_message_content(message_id):
+    """Fetch message content from database by ID"""
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT data, source_url, date
+            FROM messages
+            WHERE id = ?
+        """, (message_id,))
+        
+        result = cursor.fetchone()
+        if result:
+            return {
+                "content": result[0],
+                "source": result[1],
+                "date": result[2]
+            }
+        return None
+    except Exception as e:
+        print(f"Error fetching message {message_id}: {e}")
+        return None
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 def explore_sources_endpoint():
     """Fetches and prints the content of the /sources endpoint (GET).
@@ -97,16 +126,28 @@ def explore_summaries_endpoint():
         for i, topic in enumerate(topics):
             topic_name = topic.get("topic", "Unknown")
             importance = topic.get("importance", "N/A")
-            message_count = len(topic.get("message_ids", []))
+            message_ids = topic.get("message_ids", [])
             
             print(f"\nTopic {i+1}: {topic_name}")
             print(f"  Importance: {importance}/10")
-            print(f"  Based on {message_count} messages")
+            print(f"  Based on {len(message_ids)} messages")
             
             # Print the full summary
             summary = topic.get("summary", "")
             if summary:
                 print(f"  Summary: {summary}")
+            
+            # Print full message content for each message ID
+            print("\n  Source Messages:")
+            for msg_id in message_ids:
+                msg_content = get_message_content(msg_id)
+                if msg_content:
+                    print(f"\n    Message ID: {msg_id}")
+                    print(f"    Source: {msg_content['source']}")
+                    print(f"    Date: {msg_content['date']}")
+                    print(f"    Content: {msg_content['content']}")
+                else:
+                    print(f"    Message ID: {msg_id} - Content not found")
         
         # Return the data for further testing with insights
         return data

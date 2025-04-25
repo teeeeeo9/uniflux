@@ -164,7 +164,7 @@ def combine_message_content(message):
                 
     return combined_text
 
-def batch_messages(messages, batch_size=25):
+def batch_messages(messages, batch_size=300):
     """Split messages into batches of specified size"""
     for i in range(0, len(messages), batch_size):
         yield messages[i:i + batch_size]

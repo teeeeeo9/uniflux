@@ -936,7 +936,7 @@ async def fetch_rss_feeds(feed_urls, time_range="1d", enable_retries=False, debu
         time_range: Time range to fetch entries for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
         enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
         debug_mode: Whether to enable LiteLLM debug mode.
-
+    
     Returns:
         A dictionary where keys are feed URLs and values are lists of saved message IDs.
     """
