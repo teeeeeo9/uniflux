@@ -166,6 +166,8 @@ def list_messages(limit=None):
                 return
                 
             for i, msg in enumerate(messages, 1):
+                # print(f"summarized_links_content: {msg['summarized_links_content']}")
+                # if 'failed to' in msg['summarized_links_content']:
                 print(f"\n----- Message #{i} -----")
                 print(f"id: {msg['id']}")
                 print(f"source_url: {msg['source_url']}")

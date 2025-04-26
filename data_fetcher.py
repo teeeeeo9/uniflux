@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 import telethon.errors
 from parser import extract_summary  # Import only the extraction function, get_summary_from_db is used internally
 from config import DATABASE, LOG_FILE, TELEGRAM_SESSION
+from google import genai
+
 
 # Configure module-specific logger
 logger = logging.getLogger('data_fetcher')
@@ -47,6 +49,21 @@ api_id = int(os.getenv("TELEGRAM_API_ID"))
 api_hash = os.getenv("TELEGRAM_API_HASH")
 phone_number = os.getenv("TELEGRAM_PHONE_NUMBER")
 logger.info(f"Telegram credentials loaded: API ID: {api_id}, Phone: {phone_number}")
+
+# Configure Gemini API
+try:
+    gemini_api_key = os.getenv('GEMINI_API_KEY')
+    if not gemini_api_key:
+        logger.warning("GEMINI_API_KEY not found in environment variables.")
+        gemini_client = None
+    else:
+        # Use the Client API for asynchronous calls
+        gemini_client = genai.Client(api_key=gemini_api_key)
+        GEMINI_MODEL_CLEANER = os.getenv('GEMINI_MODEL_CLEANER', 'gemini-1.5-flash') # Use flash for simple tasks
+        logger.info(f"Gemini API configured for cleaning using model: {GEMINI_MODEL_CLEANER}")
+except Exception as e:
+    logger.error(f"Failed to configure Gemini API: {e}")
+    gemini_client = None
 
 # Configuration
 messages_limit = 100  # Number of messages to fetch per request
@@ -706,6 +723,84 @@ def get_messages_from_db(source_type, source_link, period="1d"):
         logger.error(traceback.format_exc())
         return []
 
+async def clean_rss_summary(raw_summary: str) -> str:
+    """
+    Cleans HTML/XML tags from a raw summary string using Gemini.
+    Falls back to basic regex cleaning if the Gemini API fails.
+
+    Args:
+        raw_summary: The raw summary text potentially containing HTML/XML.
+
+    Returns:
+        The cleaned plain text summary, or the original summary if cleaning fails.
+    """
+    if not raw_summary:
+        logger.debug("Skipping summary cleaning (empty summary).")
+        return ""
+    
+    # Print first 100 chars of the raw summary for debugging
+    logger.debug(f"Raw summary starts with: {raw_summary[:100]}")
+    
+    # More thorough detection of HTML content
+    has_html = False
+    html_indicators = ['<div', '<p>', '<br', '<span', '<a href', '&lt;', '&gt;', '&amp;', '&quot;', '&#']
+    for indicator in html_indicators:
+        if indicator in raw_summary:
+            has_html = True
+            logger.debug(f"HTML/XML detected: found '{indicator}' in content")
+            break
+    
+    # If no HTML detected, return as is
+    if not has_html and '<' not in raw_summary and '>' not in raw_summary:
+        logger.debug("No HTML/XML content detected, returning original.")
+        return raw_summary
+    
+    # Try cleaning with Gemini if available
+    if gemini_client:
+        logger.info("Attempting to clean HTML content using Gemini.")
+        prompt = f"""Remove ALL HTML and XML tags from the text below and return ONLY the plain text content.
+Do not add any explanation or commentary.
+Keep the original text meaning intact.
+
+TEXT TO CLEAN:
+{raw_summary}"""
+
+        try:
+            # Use the async generate_content method
+            response = await gemini_client.aio.models.generate_content(
+                model=GEMINI_MODEL_CLEANER,
+                contents=prompt
+            )
+            
+            cleaned_text = response.text.strip()
+            
+            # Log both the original and cleaned text for debugging
+            logger.debug(f"ORIGINAL (first 100 chars): {raw_summary[:100]}")
+            logger.debug(f"CLEANED (first 100 chars): {cleaned_text[:100]}")
+            
+            # Verify the cleaning worked by checking if HTML indicators are gone
+            html_remains = False
+            for indicator in html_indicators:
+                if indicator in cleaned_text:
+                    html_remains = True
+                    logger.warning(f"HTML/XML remains in cleaned content: found '{indicator}'")
+                    break
+            
+            if cleaned_text and not html_remains:
+                logger.info(f"Successfully cleaned summary using Gemini. Original length: {len(raw_summary)}, Cleaned length: {len(cleaned_text)}")
+                return cleaned_text
+            else:
+                logger.warning("Gemini cleaning did not remove all HTML or returned empty string. Falling back to regex.")
+        except Exception as e:
+            logger.error(f"Error cleaning summary with Gemini: {e}")
+            logger.error(traceback.format_exc())
+            logger.warning("Falling back to regex-based cleaning.")
+    else:
+        logger.warning("Gemini client not configured.")
+    
+    
+    return raw_summary
+
 async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_mode=False):
     """
     Fetches and parses an RSS feed from the given URL.
@@ -831,6 +926,10 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                 logger.info(f"Entry already exists in database with ID: {msg_id}")
                 message_ids.append(msg_id)
                 continue
+
+            # Clean the summary using Gemini
+            raw_summary = entry.get('summary', '')
+            cleaned_summary = await clean_rss_summary(raw_summary)
             
             # Prepare entry data
             entry_data = {
@@ -839,7 +938,8 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                 'channel_id': channel_id,
                 'message_id': message_id,
                 'date': entry_date.isoformat(),
-                'data': f"{entry.get('title', 'Untitled')}\n\n{entry.get('summary', '')}\n\nLink: {entry.get('link', '')}",
+                # Use cleaned summary here
+                'data': f"{entry.get('title', 'Untitled')}\n\n{cleaned_summary}\n\nLink: {entry.get('link', '')}", 
                 'summarized_links_content': '{}'  # Empty JSON object
             }
             
@@ -1012,6 +1112,4 @@ if __name__ == "__main__":
     logger.info("Starting data_fetcher.py")
     asyncio.run(main())
     logger.info("data_fetcher.py execution completed")
-    # res = get_messages_from_db("telegram", "https://t.me/CoinDeskGlobal", "1d")
-    # print(res)
 
