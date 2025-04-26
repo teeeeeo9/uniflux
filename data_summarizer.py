@@ -13,6 +13,9 @@ import traceback
 from dotenv import load_dotenv
 from config import DATABASE, LOG_FILE
 from instruction_templates import INSTRUCTIONS
+from typing import Dict, Any
+# from litellm import LLMExtractionStrategy, LLMConfig, CrawlerRunConfig, CacheMode, BrowserConfig
+# from litellm.crawlers import AsyncWebCrawler
 
 
 # Load environment variables
@@ -110,6 +113,7 @@ def get_messages(period, sources=None):
         params = [start_date.isoformat(), end_date.isoformat()]
         
         if sources:
+            logger.debug(f"Filtering by {len(sources)} sources")
             placeholders = ','.join(['?' for _ in sources])
             query += f" AND source_url IN ({placeholders})"
             params.extend(sources)
@@ -118,8 +122,10 @@ def get_messages(period, sources=None):
         cursor.execute(query, params)
         
         messages = []
+        logger.debug("Starting to fetch and process rows")
         for row in cursor.fetchall():
             message = dict(row)
+            logger.debug(f"Processing message ID: {message['id']}")
             
             # Parse the summarized links content if it exists
             if message['summarized_links_content']:
@@ -132,6 +138,7 @@ def get_messages(period, sources=None):
                     logger.error(f"Failed to parse summarized_links_content for message {message['id']}")
                     message['summarized_links_content'] = {}
             else:
+                logger.debug(f"No summarized_links_content for message {message['id']}")
                 message['summarized_links_content'] = {}
                 
             messages.append(message)
@@ -210,7 +217,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
                 new_messages=text_content['new_messages']
             )
         
-        logger.debug("Sending request to Gemini API")
+        logger.debug(f"Sending request to Gemini API using model: {GEMINI_MODEL_SUMMARIZER}")
         # Use the request-specific client instead of the global one
         response = await request_client.aio.models.generate_content(
             model=GEMINI_MODEL_SUMMARIZER, contents=prompt
@@ -219,6 +226,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
         
         # Extract JSON from response
         response_text = response.text
+        logger.debug(f"Response text length: {len(response_text)}")
         
         # Find JSON content (may be wrapped in markdown code blocks)
         if "```json" in response_text:
@@ -237,6 +245,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
             
         # Parse the JSON
         try:
+            logger.debug(f"Attempting to parse JSON response of length: {len(json_str)}")
             parsed_json = json.loads(json_str)
             logger.info("Successfully parsed JSON response")
             return parsed_json
@@ -244,6 +253,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
             logger.error(f"Failed to parse Gemini response as JSON: {e}")
             logger.error(f"Raw response: {response_text}")
             # Fallback: return as text
+            logger.debug("Returning error object as fallback")
             return {"error": "Failed to parse response", "raw_response": response_text}
             
     except Exception as e:
@@ -262,69 +272,77 @@ async def process_and_aggregate_news(period, sources=None):
     Returns:
         A JSON object with topics, summaries, message IDs, and importance scores
     """
-    logger.info(f"Starting to process and aggregate news for period: {period}, sources: {sources}")
+    logger.info(f"[PROCESS_START] process_and_aggregate_news for period: {period}, sources: {sources}")
     
     try:
         # Get messages from the database
+        logger.info(f"[PROCESS_STEP] Fetching messages from database for period: {period}")
         messages = get_messages(period, sources)
         
         if not messages:
-            logger.warning("No messages found for the specified period and sources")
+            logger.warning(f"[PROCESS_EMPTY] No messages found for period: {period}, sources: {sources}")
             return []
         
         # Process in batches
-        logger.info(f"Processing {len(messages)} messages in batches")
+        logger.info(f"[PROCESS_STEP] Processing {len(messages)} messages in batches")
         batches = list(batch_messages(messages))
-        logger.info(f"Created {len(batches)} batches")
+        logger.info(f"[PROCESS_INFO] Created {len(batches)} batches")
         current_summary = None
         
         for i, batch in enumerate(batches):
-            logger.info(f"Processing batch {i+1}/{len(batches)} with {len(batch)} messages")
+            logger.info(f"[PROCESS_BATCH] Processing batch {i+1}/{len(batches)} with {len(batch)} messages")
             
             try:
                 # Combine message content for each message in the batch
+                logger.debug(f"[PROCESS_DETAIL] Combining message content for batch {i+1}")
                 combined_texts = []
                 for message in batch:
                     message_text = combine_message_content(message)
                     combined_texts.append(f"Message ID: {message['id']}\n{message_text}")
                     
                 batch_text = "\n\n===== NEXT MESSAGE =====\n\n".join(combined_texts)
+                logger.debug(f"[PROCESS_DETAIL] Combined text length: {len(batch_text)} characters")
                 
                 if i == 0:
                     # Initial summarization
-                    logger.info("Performing initial summarization")
+                    logger.info(f"[PROCESS_API_CALL] Performing initial summarization via Gemini API")
                     current_summary = await summarize_with_gemini(batch_text, "initial")
+                    logger.info(f"[PROCESS_API_RESULT] Completed initial summarization")
                 else:
                     # Incremental summarization
-                    logger.info(f"Performing incremental summarization for batch {i+1}")
+                    logger.info(f"[PROCESS_API_CALL] Performing incremental summarization for batch {i+1} via Gemini API")
                     text_content = {
                         'current_summary': json.dumps(current_summary, indent=2),
                         'new_messages': batch_text
                     }
                     current_summary = await summarize_with_gemini(text_content, "incremental")
+                    logger.info(f"[PROCESS_API_RESULT] Completed incremental summarization for batch {i+1}")
             
             except Exception as e:
-                logger.error(f"Error processing batch {i+1}: {e}")
+                logger.error(f"[PROCESS_ERROR] Error processing batch {i+1}: {e}")
                 logger.error(traceback.format_exc())
                 # Continue with next batch if one fails
                 continue
         
         # Format the final output
+        logger.info(f"[PROCESS_FINAL] Finalizing summary data")
         if isinstance(current_summary, list):
             # Already in the correct format
-            logger.info(f"Summarization complete. Generated {len(current_summary)} topic summaries")
+            logger.info(f"[PROCESS_COMPLETE] Generated {len(current_summary)} topic summaries")
+            logger.debug(f"[PROCESS_DETAIL] Topics: {[t.get('topic', 'Unknown') for t in current_summary]}")
             return current_summary
         elif isinstance(current_summary, dict) and "error" in current_summary:
             # Error occurred
-            logger.error(f"Error in summarization: {current_summary['error']}")
+            logger.error(f"[PROCESS_ERROR] Error in summarization: {current_summary['error']}")
             return []
         else:
             # Unexpected format
-            logger.warning(f"Unexpected summary format: {type(current_summary)}")
+            logger.warning(f"[PROCESS_WARNING] Unexpected summary format: {type(current_summary)}")
+            logger.debug(f"[PROCESS_DETAIL] Summary content: {str(current_summary)[:200]}...")
             return []
     
     except Exception as e:
-        logger.error(f"Error in process_and_aggregate_news: {e}")
+        logger.error(f"[PROCESS_ERROR] Error in process_and_aggregate_news: {e}")
         logger.error(traceback.format_exc())
         return []
 
@@ -338,70 +356,83 @@ async def generate_insights(summary_data):
     Returns:
         List of topics with added insights
     """
-    logger.info(f"Generating insights for {len(summary_data)} topics")
+    logger.info(f"[INSIGHTS_START] Generating insights for {len(summary_data)} topics")
     
     insights_prompt_template = INSTRUCTIONS["financial_insights"]
     enhanced_summaries = []
     
     for i, topic in enumerate(summary_data):
         try:
-            logger.info(f"Generating insights for topic: {topic.get('topic', 'Unknown')}")
+            topic_name = topic.get('topic', 'Unknown')
+            logger.info(f"[INSIGHTS_TOPIC_{i+1}] Generating insights for topic: {topic_name}")
             
             # Format the summary for the prompt
-            topic_summary = f"Topic: {topic.get('topic', 'Unknown')}\n"
+            topic_summary = f"Topic: {topic_name}\n"
             topic_summary += f"Summary: {topic.get('summary', '')}\n"
             topic_summary += f"Importance: {topic.get('importance', 0)}/10\n"
             
             prompt = insights_prompt_template.format(summary=topic_summary)
-            logger.debug(f"Sending prompt to Gemini: {prompt[:100]}...")
+            logger.debug(f"[INSIGHTS_PROMPT_{i+1}] Created prompt with length: {len(prompt)}")
             
             # Use Gemini to generate insights
+            logger.debug(f"[INSIGHTS_API_CALL_{i+1}] Calling Gemini API with model: {GEMINI_MODEL_INSIGHTS}")
             response = await client.aio.models.generate_content(
                 model=GEMINI_MODEL_INSIGHTS, contents=prompt
             )
-            logger.debug("Received response from Gemini API")
+            logger.debug(f"[INSIGHTS_API_RESPONSE_{i+1}] Received response from Gemini API")
             
             # Extract JSON from response
             response_text = response.text
+            logger.debug(f"[INSIGHTS_PARSE_{i+1}] Response text length: {len(response_text)}")
             
             # Find JSON content (may be wrapped in markdown code blocks)
             if "```json" in response_text:
-                logger.debug("Found JSON content in markdown json code block")
+                logger.debug(f"[INSIGHTS_PARSE_{i+1}] Found JSON content in markdown json code block")
                 json_start = response_text.find("```json") + 7
                 json_end = response_text.find("```", json_start)
                 json_str = response_text[json_start:json_end].strip()
             elif "```" in response_text:
-                logger.debug("Found JSON content in markdown code block")
+                logger.debug(f"[INSIGHTS_PARSE_{i+1}] Found JSON content in markdown code block")
                 json_start = response_text.find("```") + 3
                 json_end = response_text.find("```", json_start)
                 json_str = response_text[json_start:json_end].strip()
             else:
-                logger.debug("No markdown code blocks found, using raw response")
+                logger.debug(f"[INSIGHTS_PARSE_{i+1}] No markdown code blocks found, using raw response")
                 json_str = response_text
                 
             # Parse the JSON
             try:
+                logger.debug(f"[INSIGHTS_PARSE_{i+1}] Attempting to parse JSON of length: {len(json_str)}")
                 insights = json.loads(json_str)
-                logger.info(f"Successfully parsed insights for topic: {topic.get('topic', 'Unknown')}")
+                logger.info(f"[INSIGHTS_SUCCESS_{i+1}] Successfully parsed insights for topic: {topic_name}")
                 
                 # Add insights to the topic
                 enhanced_topic = topic.copy()
                 enhanced_topic["insights"] = insights
+                logger.debug(f"[INSIGHTS_ADDED_{i+1}] Added insights to topic: {topic_name}")
+                
+                # Log insight types
+                if isinstance(insights, dict):
+                    insight_keys = list(insights.keys())
+                    logger.debug(f"[INSIGHTS_DETAIL_{i+1}] Insight categories: {insight_keys}")
+                
                 enhanced_summaries.append(enhanced_topic)
                 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Gemini response as JSON: {e}")
-                logger.error(f"Raw response: {response_text}")
+                logger.error(f"[INSIGHTS_ERROR_{i+1}] Failed to parse Gemini response as JSON: {e}")
+                logger.error(f"[INSIGHTS_ERROR_{i+1}] Raw response: {response_text}")
                 # Add the topic without insights
+                logger.debug(f"[INSIGHTS_FALLBACK_{i+1}] Adding topic without insights due to JSON parsing error")
                 enhanced_summaries.append(topic)
                 
         except Exception as e:
-            logger.error(f"Error generating insights for topic {i}: {e}")
+            logger.error(f"[INSIGHTS_ERROR_{i+1}] Error generating insights for topic {i}: {e}")
             logger.error(traceback.format_exc())
             # Include the topic without insights if there's an error
+            logger.debug(f"[INSIGHTS_FALLBACK_{i+1}] Adding topic without insights due to general error")
             enhanced_summaries.append(topic)
     
-    logger.info(f"Completed generating insights for {len(summary_data)} topics")
+    logger.info(f"[INSIGHTS_COMPLETE] Completed generating insights for {len(summary_data)} topics")
     return enhanced_summaries
 
 async def classify_topics_to_metatopics(topics):
@@ -414,85 +445,114 @@ async def classify_topics_to_metatopics(topics):
     Returns:
         The same list of topics with a 'metatopic' field added to each
     """
-    logger.info(f"Starting metatopic classification for {len(topics)} topics using model: {GEMINI_MODEL_METATOPICS}")
+    logger.info(f"[METATOPICS_START] Starting metatopic classification for {len(topics)} topics using model: {GEMINI_MODEL_METATOPICS}")
     
     if not topics:
-        logger.warning("No topics to classify")
+        logger.warning("[METATOPICS_EMPTY] No topics to classify")
         return topics
     
     # Prepare the content for the prompt
+    logger.debug("[METATOPICS_PREP] Preparing topics data for classification")
     topics_text = []
     for i, topic in enumerate(topics):
-        topics_text.append(f"Topic {i+1}: {topic.get('topic', 'Unknown')}\nSummary: {topic.get('summary', '')}")
+        topic_name = topic.get('topic', 'Unknown')
+        logger.debug(f"[METATOPICS_PREP] Processing topic {i+1}: {topic_name}")
+        topics_text.append(f"Topic {i+1}: {topic_name}\nSummary: {topic.get('summary', '')}")
     
     topics_content = "\n\n".join(topics_text)
+    logger.debug(f"[METATOPICS_PREP] Prepared content with {len(topics_content)} characters")
     
     try:
         # Create a fresh client for this request to avoid connection issues
+        logger.debug("[METATOPICS_CLIENT] Creating fresh Gemini client")
         request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         
         prompt = INSTRUCTIONS.get("metatopic_classification", "").format(topics=topics_content)
-        logger.debug(f"Sending metatopic classification prompt to Gemini model: {GEMINI_MODEL_METATOPICS}")
+        logger.debug(f"[METATOPICS_PROMPT] Created prompt with {len(prompt)} characters")
         
+        # Log API call
+        logger.info(f"[METATOPICS_API_CALL] Sending classification request to Gemini model: {GEMINI_MODEL_METATOPICS}")
         response = await request_client.aio.models.generate_content(
             model=GEMINI_MODEL_METATOPICS, contents=prompt
         )
-        logger.debug("Received response from Gemini API for metatopic classification")
+        logger.info("[METATOPICS_API_RESULT] Received response from Gemini API for metatopic classification")
         
         # Extract JSON from response
         response_text = response.text
+        logger.debug(f"[METATOPICS_PARSE] Parsing response text with {len(response_text)} characters")
         
         # Find JSON content (may be wrapped in markdown code blocks)
+        json_str = ""
         if "```json" in response_text:
-            logger.debug("Found JSON content in markdown json code block")
+            logger.debug("[METATOPICS_PARSE] Found JSON content in markdown json code block")
             json_start = response_text.find("```json") + 7
             json_end = response_text.find("```", json_start)
             json_str = response_text[json_start:json_end].strip()
         elif "```" in response_text:
-            logger.debug("Found JSON content in markdown code block")
+            logger.debug("[METATOPICS_PARSE] Found JSON content in markdown code block")
             json_start = response_text.find("```") + 3
             json_end = response_text.find("```", json_start)
             json_str = response_text[json_start:json_end].strip()
         else:
-            logger.debug("No markdown code blocks found, using raw response")
+            logger.debug("[METATOPICS_PARSE] No markdown code blocks found, using raw response")
             json_str = response_text
             
         # Parse the JSON
         try:
+            logger.debug(f"[METATOPICS_PARSE] Attempting to parse JSON string of length {len(json_str)}")
             metatopics_data = json.loads(json_str)
-            logger.info("Successfully parsed metatopic classification response")
+            logger.info("[METATOPICS_PARSE] Successfully parsed metatopic classification response")
             
             # Apply metatopics to the original topics list
+            logger.debug(f"[METATOPICS_APPLY] Applying metatopics data to {len(topics)} topics")
             if isinstance(metatopics_data, list) and len(metatopics_data) == len(topics):
                 for i, metatopic_info in enumerate(metatopics_data):
                     if isinstance(metatopic_info, dict) and 'metatopic' in metatopic_info:
                         topics[i]['metatopic'] = metatopic_info['metatopic']
+                        logger.debug(f"[METATOPICS_APPLY] Topic {i+1}: assigned metatopic '{metatopic_info['metatopic']}'")
                     else:
-                        logger.warning(f"Unexpected format for metatopic at index {i}")
+                        logger.warning(f"[METATOPICS_WARNING] Unexpected format for metatopic at index {i}")
                         topics[i]['metatopic'] = "Other"
+                        logger.debug(f"[METATOPICS_APPLY] Topic {i+1}: assigned default metatopic 'Other'")
+                logger.info(f"[METATOPICS_COMPLETE] Successfully applied metatopics to {len(topics)} topics")
+                logger.debug(f"[METATOPICS_SUMMARY] Metatopic distribution: {count_metatopics(topics)}")
             else:
-                logger.warning(f"Unexpected metatopics response format: {metatopics_data}")
+                logger.warning(f"[METATOPICS_WARNING] Unexpected metatopics response format: length mismatch or invalid structure")
                 # Apply a default metatopic if the response format doesn't match
-                for topic in topics:
+                for i, topic in enumerate(topics):
                     topic['metatopic'] = "Other"
+                    logger.debug(f"[METATOPICS_APPLY] Topic {i+1}: assigned default metatopic 'Other' due to format mismatch")
+                logger.info("[METATOPICS_FALLBACK] Applied default 'Other' metatopic to all topics")
                 
             return topics
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
-            logger.error(f"Raw response: {response_text}")
+            logger.error(f"[METATOPICS_ERROR] Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"[METATOPICS_ERROR] Raw response: {response_text[:500]}...")
             # Return original topics without metatopics in case of error
-            for topic in topics:
+            for i, topic in enumerate(topics):
                 topic['metatopic'] = "Other"
+                logger.debug(f"[METATOPICS_APPLY] Topic {i+1}: assigned default metatopic 'Other' due to JSON parse error")
+            logger.info("[METATOPICS_FALLBACK] Applied default 'Other' metatopic to all topics due to JSON parse error")
             return topics
             
     except Exception as e:
-        logger.error(f"Error in metatopic classification: {e}")
+        logger.error(f"[METATOPICS_ERROR] Error in metatopic classification: {e}")
         logger.error(traceback.format_exc())
         # Return original topics without metatopics in case of error
-        for topic in topics:
+        for i, topic in enumerate(topics):
             topic['metatopic'] = "Other"
+            logger.debug(f"[METATOPICS_APPLY] Topic {i+1}: assigned default metatopic 'Other' due to exception")
+        logger.info("[METATOPICS_FALLBACK] Applied default 'Other' metatopic to all topics due to exception")
         return topics
+
+def count_metatopics(topics):
+    """Count the distribution of metatopics for logging purposes"""
+    counts = {}
+    for topic in topics:
+        metatopic = topic.get('metatopic', 'Unknown')
+        counts[metatopic] = counts.get(metatopic, 0) + 1
+    return counts
 
 async def rate_topic_importance(topics):
     """
@@ -504,128 +564,173 @@ async def rate_topic_importance(topics):
     Returns:
         The same list of topics with an 'importance' field added to each
     """
-    logger.info(f"Starting importance rating for {len(topics)} topics using model: {GEMINI_MODEL_IMPORTANCE}")
+    logger.info(f"[IMPORTANCE_START] Starting importance rating for {len(topics)} topics using model: {GEMINI_MODEL_IMPORTANCE}")
     
     if not topics:
-        logger.warning("No topics to rate")
+        logger.warning("[IMPORTANCE_EMPTY] No topics to rate")
         return topics
     
     # Prepare the content for the prompt
+    logger.debug("[IMPORTANCE_PREP] Preparing topics data for importance rating")
     topics_text = []
     for i, topic in enumerate(topics):
-        topics_text.append(f"Topic {i+1}: {topic.get('topic', 'Unknown')}\nSummary: {topic.get('summary', '')}")
+        topic_name = topic.get('topic', 'Unknown')
+        logger.debug(f"[IMPORTANCE_PREP] Processing topic {i+1}: {topic_name}")
+        topics_text.append(f"Topic {i+1}: {topic_name}\nSummary: {topic.get('summary', '')}")
     
     topics_content = "\n\n".join(topics_text)
+    logger.debug(f"[IMPORTANCE_PREP] Prepared content with {len(topics_content)} characters")
     
     try:
         # Create a fresh client for this request to avoid connection issues
+        logger.debug("[IMPORTANCE_CLIENT] Creating fresh Gemini client")
         request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         
         prompt = INSTRUCTIONS.get("importance_rating", "").format(topics=topics_content)
-        logger.debug(f"Sending importance rating prompt to Gemini model: {GEMINI_MODEL_IMPORTANCE}")
+        logger.debug(f"[IMPORTANCE_PROMPT] Created prompt with {len(prompt)} characters")
         
+        # Log API call
+        logger.info(f"[IMPORTANCE_API_CALL] Sending importance rating request to Gemini model: {GEMINI_MODEL_IMPORTANCE}")
         response = await request_client.aio.models.generate_content(
             model=GEMINI_MODEL_IMPORTANCE, contents=prompt
         )
-        logger.debug("Received response from Gemini API for importance rating")
+        logger.info("[IMPORTANCE_API_RESULT] Received response from Gemini API for importance rating")
         
         # Extract JSON from response
         response_text = response.text
+        logger.debug(f"[IMPORTANCE_PARSE] Parsing response text with {len(response_text)} characters")
         
         # Find JSON content (may be wrapped in markdown code blocks)
+        json_str = ""
         if "```json" in response_text:
-            logger.debug("Found JSON content in markdown json code block")
+            logger.debug("[IMPORTANCE_PARSE] Found JSON content in markdown json code block")
             json_start = response_text.find("```json") + 7
             json_end = response_text.find("```", json_start)
             json_str = response_text[json_start:json_end].strip()
         elif "```" in response_text:
-            logger.debug("Found JSON content in markdown code block")
+            logger.debug("[IMPORTANCE_PARSE] Found JSON content in markdown code block")
             json_start = response_text.find("```") + 3
             json_end = response_text.find("```", json_start)
             json_str = response_text[json_start:json_end].strip()
         else:
-            logger.debug("No markdown code blocks found, using raw response")
+            logger.debug("[IMPORTANCE_PARSE] No markdown code blocks found, using raw response")
             json_str = response_text
             
         # Parse the JSON
         try:
+            logger.debug(f"[IMPORTANCE_PARSE] Attempting to parse JSON string of length {len(json_str)}")
             importance_data = json.loads(json_str)
-            logger.info("Successfully parsed importance rating response")
+            logger.info("[IMPORTANCE_PARSE] Successfully parsed importance rating response")
             
             # Apply importance ratings to the original topics list
+            logger.debug(f"[IMPORTANCE_APPLY] Applying importance data to {len(topics)} topics")
             if isinstance(importance_data, list) and len(importance_data) == len(topics):
+                importance_values = []
                 for i, importance_info in enumerate(importance_data):
                     if isinstance(importance_info, dict) and 'importance' in importance_info:
-                        topics[i]['importance'] = importance_info['importance']
+                        importance_value = importance_info['importance']
+                        topics[i]['importance'] = importance_value
+                        importance_values.append(importance_value)
+                        logger.debug(f"[IMPORTANCE_APPLY] Topic {i+1}: assigned importance '{importance_value}'")
                     else:
-                        logger.warning(f"Unexpected format for importance at index {i}")
+                        logger.warning(f"[IMPORTANCE_WARNING] Unexpected format for importance at index {i}")
                         topics[i]['importance'] = 5  # Default mid-range importance
+                        importance_values.append(5)
+                        logger.debug(f"[IMPORTANCE_APPLY] Topic {i+1}: assigned default importance 5")
+                        
+                # Log importance distribution
+                if importance_values:
+                    avg_importance = sum(importance_values) / len(importance_values)
+                    logger.info(f"[IMPORTANCE_STATS] Average importance: {avg_importance:.2f}, Min: {min(importance_values)}, Max: {max(importance_values)}")
+                
+                logger.info(f"[IMPORTANCE_COMPLETE] Successfully applied importance ratings to {len(topics)} topics")
             else:
-                logger.warning(f"Unexpected importance response format: {importance_data}")
+                logger.warning(f"[IMPORTANCE_WARNING] Unexpected importance response format: length mismatch or invalid structure")
                 # Apply a default importance if the response format doesn't match
-                for topic in topics:
+                for i, topic in enumerate(topics):
                     topic['importance'] = 5
+                    logger.debug(f"[IMPORTANCE_APPLY] Topic {i+1}: assigned default importance 5 due to format mismatch")
+                logger.info("[IMPORTANCE_FALLBACK] Applied default importance rating of 5 to all topics")
                 
             return topics
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gemini response as JSON: {e}")
-            logger.error(f"Raw response: {response_text}")
+            logger.error(f"[IMPORTANCE_ERROR] Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"[IMPORTANCE_ERROR] Raw response: {response_text[:500]}...")
             # Return original topics with default importance in case of error
-            for topic in topics:
+            for i, topic in enumerate(topics):
                 topic['importance'] = 5
+                logger.debug(f"[IMPORTANCE_APPLY] Topic {i+1}: assigned default importance 5 due to JSON parse error")
+            logger.info("[IMPORTANCE_FALLBACK] Applied default importance rating of 5 to all topics due to JSON parse error")
             return topics
             
     except Exception as e:
-        logger.error(f"Error in importance rating: {e}")
+        logger.error(f"[IMPORTANCE_ERROR] Error in importance rating: {e}")
         logger.error(traceback.format_exc())
         # Return original topics with default importance in case of error
-        for topic in topics:
+        for i, topic in enumerate(topics):
             topic['importance'] = 5
+            logger.debug(f"[IMPORTANCE_APPLY] Topic {i+1}: assigned default importance 5 due to exception")
+        logger.info("[IMPORTANCE_FALLBACK] Applied default importance rating of 5 to all topics due to exception")
         return topics
 
 async def main(period='1d', sources=None, include_insights=False):
     """Main function to run the summarizer"""
-    logger.info(f"Starting main function with period={period}, sources={sources}, include_insights={include_insights}")
+    logger.info(f"[MAIN_START] Starting main function with period={period}, sources={sources}, include_insights={include_insights}")
     
     try:
         # Step 1: Get the initial topic summaries
+        logger.info(f"[MAIN_STEP1] Starting topic summarization")
         result = await process_and_aggregate_news(period, sources)
         
         if not result:
-            logger.warning("No results generated from summarization")
+            logger.warning("[MAIN_EMPTY] No results generated from summarization")
             return []
         else:
-            logger.info(f"Generated {len(result)} topic summaries")
+            logger.info(f"[MAIN_STEP1_COMPLETE] Generated {len(result)} topic summaries")
             
             # Step 2: Enhance with metatopics
-            logger.info("Enhancing topics with metatopic classification")
+            logger.info("[MAIN_STEP2] Starting metatopic classification")
             result = await classify_topics_to_metatopics(result)
-            logger.info(f"Added metatopics to {len(result)} topics")
+            logger.info(f"[MAIN_STEP2_COMPLETE] Added metatopics to {len(result)} topics")
+            logger.debug(f"[MAIN_STEP2_DETAIL] Metatopic distribution: {count_metatopics(result)}")
             
             # Step 3: Add importance ratings
-            logger.info("Rating topic importance")
+            logger.info("[MAIN_STEP3] Starting importance rating")
             result = await rate_topic_importance(result)
-            logger.info(f"Added importance ratings to {len(result)} topics")
+            logger.info(f"[MAIN_STEP3_COMPLETE] Added importance ratings to {len(result)} topics")
+            
+            # Log importance distribution
+            if result:
+                importance_values = [topic.get('importance', 0) for topic in result]
+                avg_importance = sum(importance_values) / len(importance_values) if importance_values else 0
+                logger.debug(f"[MAIN_STEP3_DETAIL] Importance stats: Avg={avg_importance:.2f}, Min={min(importance_values) if importance_values else 0}, Max={max(importance_values) if importance_values else 0}")
              
             # Step 4: Generate insights if requested
             if include_insights:
-                logger.info("Generating insights for topics")
+                logger.info("[MAIN_STEP4] Starting insights generation")
                 result = await generate_insights(result)
-                logger.info(f"Added insights to {len(result)} topics")
+                logger.info(f"[MAIN_STEP4_COMPLETE] Added insights to {len(result)} topics")
+                
+                # Log insight completeness
+                topics_with_insights = sum(1 for topic in result if 'insights' in topic and topic['insights'])
+                logger.debug(f"[MAIN_STEP4_DETAIL] Topics with insights: {topics_with_insights}/{len(result)}")
             
+        logger.info("[MAIN_COMPLETE] Processing completed successfully")
+        logger.debug(f"[MAIN_RESULT] Returning {len(result)} topics")
         print(json.dumps(result, indent=2))
         return result
     except Exception as e:
-        logger.error(f"Error in main function: {e}")
+        logger.error(f"[MAIN_ERROR] Error in main function: {e}")
         logger.error(traceback.format_exc())
         sys.exit(1)
 
 if __name__ == "__main__":
     # Parse command line arguments
-    logger.info("Starting data_summarizer.py")
+    logger.info("[SCRIPT_START] Starting data_summarizer.py")
     
     try:
+        logger.debug("[SCRIPT_EXEC] Calling main() function with default parameters")
         # import argparse
         
         # parser = argparse.ArgumentParser(description='Summarize news from various sources')
@@ -635,9 +740,9 @@ if __name__ == "__main__":
         # args = parser.parse_args()
         
         asyncio.run(main())
-        logger.info("data_summarizer.py execution completed")
+        logger.info("[SCRIPT_COMPLETE] data_summarizer.py execution completed")
     except Exception as e:
-        logger.error(f"Unhandled exception in data_summarizer.py: {e}")
+        logger.error(f"[SCRIPT_ERROR] Unhandled exception in data_summarizer.py: {e}")
         logger.error(traceback.format_exc())
         sys.exit(1)
 

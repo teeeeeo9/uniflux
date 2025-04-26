@@ -14,6 +14,9 @@ const Settings = ({ onFetchInsights }) => {
   
   // State for selected sources
   const [selectedSources, setSelectedSources] = useState([]);
+  
+  // State for category checkboxes
+  const [selectedCategories, setSelectedCategories] = useState({});
 
   // Fetch sources from API on component mount
   useEffect(() => {
@@ -47,6 +50,13 @@ const Settings = ({ onFetchInsights }) => {
         const data = await response.json();
         console.log('Sources response:', data);
         setCategories(data.sources || {});
+        
+        // Initialize selected categories state
+        const initialSelectedCategories = {};
+        Object.keys(data.sources || {}).forEach(category => {
+          initialSelectedCategories[category] = false;
+        });
+        setSelectedCategories(initialSelectedCategories);
       } catch (err) {
         console.error('Error fetching sources:', err);
         setError(err.message || 'Failed to fetch sources');
@@ -79,6 +89,58 @@ const Settings = ({ onFetchInsights }) => {
       }
     });
   };
+  
+  const handleCategoryToggle = (category) => {
+    const updatedSelectedCategories = {
+      ...selectedCategories,
+      [category]: !selectedCategories[category]
+    };
+    setSelectedCategories(updatedSelectedCategories);
+    
+    // Update selected sources based on category selection
+    const categoryUrls = categories[category].map(source => source.url);
+    
+    if (updatedSelectedCategories[category]) {
+      // Add all sources in this category if they're not already selected
+      setSelectedSources(prev => {
+        const newSources = [...prev];
+        categoryUrls.forEach(url => {
+          if (!newSources.includes(url)) {
+            newSources.push(url);
+          }
+        });
+        return newSources;
+      });
+    } else {
+      // Remove all sources in this category
+      setSelectedSources(prev => prev.filter(url => !categoryUrls.includes(url)));
+    }
+  };
+
+  // Check if all sources in a category are selected
+  const isCategorySelected = (category) => {
+    const categoryUrls = categories[category].map(source => source.url);
+    return categoryUrls.every(url => selectedSources.includes(url));
+  };
+
+  // Check if some (but not all) sources in a category are selected
+  const isCategoryPartiallySelected = (category) => {
+    const categoryUrls = categories[category].map(source => source.url);
+    const isPartial = categoryUrls.some(url => selectedSources.includes(url)) && 
+                     !categoryUrls.every(url => selectedSources.includes(url));
+    return isPartial;
+  };
+
+  // Update selected categories state based on source selections
+  useEffect(() => {
+    const newSelectedCategories = {};
+    
+    Object.keys(categories).forEach(category => {
+      newSelectedCategories[category] = isCategorySelected(category);
+    });
+    
+    setSelectedCategories(newSelectedCategories);
+  }, [selectedSources, categories]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -152,34 +214,53 @@ const Settings = ({ onFetchInsights }) => {
                 />
               </div>
             ) : (
-              <div className="source-categories">
-                {Object.keys(categories).length === 0 ? (
-                  <p className="no-sources">No sources available in the database.</p>
-                ) : (
-                  Object.entries(categories).map(([category, sources]) => (
-                    <div key={category} className="source-category">
-                      <h3>{category}</h3>
-                      <div className="source-list-container">
-                        {sources.map(source => (
-                          <div key={source.id} className="source-item">
-                            <label className="checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={selectedSources.includes(source.url)}
-                                onChange={() => handleSourceToggle(source.url)}
-                              />
-                              <span className="source-url">{source.url}</span>
-                            </label>
-                          </div>
-                        ))}
+              <>
+                <div className="source-categories-grid">
+                  {Object.keys(categories).length === 0 ? (
+                    <p className="no-sources">No sources available in the database.</p>
+                  ) : (
+                    Object.entries(categories).map(([category, sources]) => (
+                      <div key={category} className="source-category-block">
+                        <div className="category-header">
+                          <label className="category-checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={isCategorySelected(category)}
+                              onChange={() => handleCategoryToggle(category)}
+                              className="category-checkbox"
+                              ref={el => {
+                                if (el) {
+                                  el.indeterminate = isCategoryPartiallySelected(category);
+                                }
+                              }}
+                            />
+                            <h3>{category}</h3>
+                          </label>
+                        </div>
+                        <div className="source-list-container-grid">
+                          {sources.map(source => (
+                            <div key={source.id} className="source-item">
+                              <label className="checkbox-label">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSources.includes(source.url)}
+                                  onChange={() => handleSourceToggle(source.url)}
+                                />
+                                <span className="source-name" title={source.url}>
+                                  {source.name}
+                                </span>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
                 <div className="selected-count">
                   Selected sources: {selectedSources.length}
                 </div>
-              </div>
+              </>
             )}
 
             <div className="form-actions">

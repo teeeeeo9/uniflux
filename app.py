@@ -103,19 +103,23 @@ def init_db():
                     logger.warning(f"Skipping source with missing data: {source}")
                     continue
                     
+                # Extract name from source or use a default based on the URL
+                name = source.get('name', source['url'].split('/')[-1])
+                
                 cursor.execute(
-                    "INSERT OR IGNORE INTO sources (url, source_type, category) VALUES (?, ?, ?)",
-                    (source['url'], source['source_type'], source['category'])
+                    "INSERT OR IGNORE INTO sources (url, name, source_type, category) VALUES (?, ?, ?, ?)",
+                    (source['url'], name, source['source_type'], source['category'])
                 )
                 
                 # If the source exists but has different values, update it
                 cursor.execute(
                     """
                     UPDATE sources 
-                    SET source_type = ?, category = ? 
-                    WHERE url = ? AND (source_type != ? OR category != ?)
+                    SET name = ?, source_type = ?, category = ? 
+                    WHERE url = ? AND (name != ? OR source_type != ? OR category != ?)
                     """,
-                    (source['source_type'], source['category'], source['url'], source['source_type'], source['category'])
+                    (name, source['source_type'], source['category'], 
+                     source['url'], name, source['source_type'], source['category'])
                 )
                 
             db.commit()
@@ -351,8 +355,8 @@ async def get_sources():
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT id, url, source_type, category FROM sources 
-                ORDER BY category, url
+                SELECT id, url, name, source_type, category FROM sources 
+                ORDER BY category, name, url
                 """
             )
             
@@ -368,6 +372,7 @@ async def get_sources():
                 categorized_sources[category].append({
                     'id': source['id'],
                     'url': source['url'],
+                    'name': source['name'] if source['name'] else source['url'].split('/')[-1],  # Use last part of URL if no name provided
                     'source_type': source['source_type']
                 })
             
