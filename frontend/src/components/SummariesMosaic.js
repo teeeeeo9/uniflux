@@ -122,63 +122,18 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       }
     };
     
-    // Function to clear an area (mark as unoccupied)
-    const clearArea = (startRow, startCol, width, height) => {
-      for (let row = startRow; row < startRow + height; row++) {
-        for (let col = startCol; col < startCol + width; col++) {
-          grid.cells[row][col] = null;
-        }
-      }
-    };
-    
-    // Function to find the next available position using dynamic sizing
-    const findBestPosition = (preferredWidth, preferredHeight, tileIndex) => {
-      // First try with the preferred size
+    // Function to find the first position where a tile fits (no intersections)
+    const findFirstFit = (width, height) => {
       for (let row = 0; row < grid.height; row++) {
         for (let col = 0; col < grid.width; col++) {
-          if (isAreaFree(row, col, preferredWidth, preferredHeight)) {
-            return {
-              row,
-              col,
-              width: preferredWidth,
-              height: preferredHeight,
-              resized: false
-            };
+          if (isAreaFree(row, col, width, height)) {
+            return { row, col, width, height };
           }
         }
       }
       
-      // If preferred size doesn't fit, try smaller variations
-      const sizeVariations = [
-        // Try reducing width first (for wide tiles)
-        { width: Math.max(1, preferredWidth - 1), height: preferredHeight },
-        // Try reducing height (for tall tiles)
-        { width: preferredWidth, height: Math.max(1, preferredHeight - 1) },
-        // Try reducing both 
-        { width: Math.max(1, preferredWidth - 1), height: Math.max(1, preferredHeight - 1) },
-        // Last resort: use smallest possible size
-        { width: 1, height: 1 }
-      ];
-      
-      // Try each size variation until one fits
-      for (const variation of sizeVariations) {
-        for (let row = 0; row < grid.height; row++) {
-          for (let col = 0; col < grid.width; col++) {
-            if (isAreaFree(row, col, variation.width, variation.height)) {
-              return {
-                row,
-                col,
-                width: variation.width,
-                height: variation.height,
-                resized: true
-              };
-            }
-          }
-        }
-      }
-      
-      // Should not reach here with our grid size, but provide fallback
-      return { row: 0, col: 0, width: 1, height: 1, resized: true };
+      // Fallback: If all positions are filled, create a new row at the end
+      return { row: grid.height - 1, col: 0, width: 1, height: 1 };
     };
     
     // Place each tile with optimized sizing
@@ -192,19 +147,54 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     }))
     .sort((a, b) => b.importance - a.importance); // Sort by importance descending
     
+    // First placement pass - ensure no intersections (absolute priority)
     sortedTopics.forEach(({ topic, index, importance }) => {
       // Get initial ideal size based on topic properties
       const { width, height } = getInitialTileSize(topic, index, topics.length);
       
-      // Find best position and possibly resize if needed
-      const { row, col, width: finalWidth, height: finalHeight } = findBestPosition(width, height, index);
+      // Find first valid position with potentially reduced size
+      let finalWidth = width;
+      let finalHeight = height;
+      
+      // Try original size first
+      let position = findFirstFit(finalWidth, finalHeight);
+      
+      // If tile doesn't fit with original size, try smaller sizes
+      if (!position) {
+        // Try different size variations until one fits
+        const sizeVariations = [
+          { width: Math.min(finalWidth, MAX_WIDTH), height: finalHeight },
+          { width: finalWidth, height: Math.max(1, finalHeight - 1) },
+          { width: Math.max(1, finalWidth - 1), height: finalHeight },
+          { width: Math.max(1, finalWidth - 1), height: Math.max(1, finalHeight - 1) },
+          { width: 2, height: 1 },
+          { width: 1, height: 2 },
+          { width: 1, height: 1 } // Minimum size as last resort
+        ];
+        
+        for (const size of sizeVariations) {
+          position = findFirstFit(size.width, size.height);
+          if (position) {
+            finalWidth = size.width;
+            finalHeight = size.height;
+            break;
+          }
+        }
+        
+        // If still no fit, use 1x1 at the end
+        if (!position) {
+          position = findFirstFit(1, 1);
+          finalWidth = 1;
+          finalHeight = 1;
+        }
+      }
       
       // Store positioned tile
       const newTile = {
         topic,
         index,
-        row,
-        col,
+        row: position.row,
+        col: position.col,
         width: finalWidth,
         height: finalHeight
       };
@@ -212,7 +202,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       positionedTiles.push(newTile);
       
       // Mark cells as occupied
-      occupyArea(row, col, finalWidth, finalHeight, index);
+      occupyArea(position.row, position.col, finalWidth, finalHeight, index);
     });
     
     // Find the maximum used row
@@ -228,253 +218,153 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     // Determine the actual max row (including tile heights)
     let actualMaxRow = maxRow;
     for (const tile of positionedTiles) {
-      if (tile.row <= maxRow && tile.row + tile.height > actualMaxRow) {
-        actualMaxRow = tile.row + tile.height;
+      const tileBottomRow = tile.row + tile.height - 1;
+      if (tileBottomRow > actualMaxRow) {
+        actualMaxRow = tileBottomRow;
       }
     }
     
-    // Fill any gaps by adjusting tiles (growing or shrinking)
-    // First, scan for gaps
-    const gaps = [];
+    // Second priority: Fill empty spaces
+    // Identify and fill gaps
     for (let row = 0; row <= actualMaxRow; row++) {
       for (let col = 0; col < grid.width; col++) {
         if (grid.cells[row][col] === null) {
-          gaps.push({ row, col });
-        }
-      }
-    }
-    
-    // Process each gap
-    gaps.forEach(gap => {
-      const { row, col } = gap;
-      
-      // Skip if this gap was already filled by a previous operation
-      if (grid.cells[row][col] !== null) {
-        return;
-      }
-      
-      // Try strategies to fill the gap
-      const strategies = [
-        // 1. Extend a tile from above
-        () => {
-          if (row > 0 && grid.cells[row - 1][col] !== null) {
-            const tileIndex = grid.cells[row - 1][col];
-            const tile = positionedTiles.find(t => t.index === tileIndex);
-            
-            // Check if all cells in the row for this tile width are free
-            let canExtend = true;
-            for (let c = tile.col; c < tile.col + tile.width; c++) {
-              if (c >= grid.width || (grid.cells[row][c] !== null && grid.cells[row][c] !== tileIndex)) {
-                canExtend = false;
+          // Found a gap
+          
+          // Try to find the largest possible expansion for this gap
+          let maxWidth = 1;
+          let maxHeight = 1;
+          
+          // Check how far to the right we can expand
+          while (col + maxWidth < grid.width && grid.cells[row][col + maxWidth] === null) {
+            maxWidth++;
+          }
+          
+          // Check how far down we can expand
+          let canExpandDown = true;
+          let currentHeight = 1;
+          
+          while (canExpandDown && row + currentHeight <= actualMaxRow) {
+            // Check the entire row at this height
+            for (let checkCol = col; checkCol < col + maxWidth; checkCol++) {
+              if (checkCol >= grid.width || grid.cells[row + currentHeight][checkCol] !== null) {
+                canExpandDown = false;
                 break;
               }
             }
             
-            if (canExtend) {
-              // Clear the tile's current area
-              clearArea(tile.row, tile.col, tile.width, tile.height);
-              
-              // Update the tile dimensions
-              tile.height += 1;
-              
-              // Occupy the new area
-              occupyArea(tile.row, tile.col, tile.width, tile.height, tile.index);
-              return true;
+            if (canExpandDown) {
+              currentHeight++;
+              maxHeight = currentHeight;
             }
           }
-          return false;
-        },
-        
-        // 2. Extend a tile from the left
-        () => {
-          if (col > 0 && grid.cells[row][col - 1] !== null) {
-            const tileIndex = grid.cells[row][col - 1];
-            const tile = positionedTiles.find(t => t.index === tileIndex);
+          
+          // Find the nearest tile that can be expanded
+          const adjacentPositions = [
+            { direction: 'up', r: row - 1, c: col },
+            { direction: 'left', r: row, c: col - 1 },
+            { direction: 'right', r: row, c: col + maxWidth },
+            { direction: 'down', r: row + maxHeight, c: col }
+          ];
+          
+          let expanded = false;
+          
+          for (const pos of adjacentPositions) {
+            if (pos.r < 0 || pos.c < 0 || pos.r >= grid.height || pos.c >= grid.width) continue;
             
-            // Don't make extremely wide tiles (max 4)
-            if (tile.width >= 4) return false;
+            const adjacentTileIndex = grid.cells[pos.r][pos.c];
+            if (adjacentTileIndex === null) continue;
             
-            // Check if all cells in the column for this tile height are free
-            let canExtend = true;
-            for (let r = tile.row; r < tile.row + tile.height; r++) {
-              if (r >= grid.height || (grid.cells[r][col] !== null && grid.cells[r][col] !== tileIndex)) {
-                canExtend = false;
+            const adjacentTile = positionedTiles.find(t => t.index === adjacentTileIndex);
+            if (!adjacentTile) continue;
+            
+            // Try to expand this tile to fill the gap
+            if (pos.direction === 'up' && adjacentTile.col <= col && adjacentTile.col + adjacentTile.width > col) {
+              const expansionWidth = Math.min(maxWidth, adjacentTile.width);
+              
+              // Check if we can expand down without collisions
+              let expansionHeight = 1;
+              let canExpand = true;
+              
+              for (let c = adjacentTile.col; c < adjacentTile.col + adjacentTile.width; c++) {
+                if (c >= grid.width || (grid.cells[row][c] !== null && grid.cells[row][c] !== adjacentTileIndex)) {
+                  canExpand = false;
+                  break;
+                }
+              }
+              
+              if (canExpand) {
+                const originalHeight = adjacentTile.height;
+                adjacentTile.height += expansionHeight;
+                
+                // Mark the new area as occupied
+                for (let r = row; r < row + expansionHeight; r++) {
+                  for (let c = adjacentTile.col; c < adjacentTile.col + adjacentTile.width; c++) {
+                    grid.cells[r][c] = adjacentTileIndex;
+                  }
+                }
+                
+                expanded = true;
                 break;
               }
             }
-            
-            if (canExtend) {
-              // Clear the tile's current area
-              clearArea(tile.row, tile.col, tile.width, tile.height);
+            else if (pos.direction === 'left' && adjacentTile.row <= row && adjacentTile.row + adjacentTile.height > row) {
+              const expansionHeight = Math.min(maxHeight, adjacentTile.height);
               
-              // Update the tile dimensions
-              tile.width += 1;
+              // Check if we can expand right without collisions
+              let expansionWidth = 1;
+              let canExpand = true;
               
-              // Occupy the new area
-              occupyArea(tile.row, tile.col, tile.width, tile.height, tile.index);
-              return true;
-            }
-          }
-          return false;
-        },
-        
-        // 3. Create a new 1x1 tile by shrinking an adjacent tile
-        () => {
-          // Look for an adjacent tile that can be shrunk
-          const adjacentPositions = [
-            { r: row - 1, c: col }, // Above
-            { r: row, c: col - 1 }, // Left
-            { r: row + 1, c: col }, // Below
-            { r: row, c: col + 1 }  // Right
-          ];
-          
-          for (const pos of adjacentPositions) {
-            if (pos.r < 0 || pos.c < 0 || pos.r >= grid.height || pos.c >= grid.width) continue;
-            
-            const adjTileIndex = grid.cells[pos.r][pos.c];
-            if (adjTileIndex === null) continue;
-            
-            const adjTile = positionedTiles.find(t => t.index === adjTileIndex);
-            
-            // Only consider shrinking tiles that are at least 2 in width or height
-            if (adjTile.width > 1 || adjTile.height > 1) {
-              // Try to carve out a 1x1 space for the gap
-              let canShrink = false;
-              let newWidth = adjTile.width;
-              let newHeight = adjTile.height;
+              for (let r = adjacentTile.row; r < adjacentTile.row + adjacentTile.height; r++) {
+                if (r >= grid.height || (grid.cells[r][col] !== null && grid.cells[r][col] !== adjacentTileIndex)) {
+                  canExpand = false;
+                  break;
+                }
+              }
               
-              // If the gap is within the tile's boundaries
-              if (row >= adjTile.row && row < adjTile.row + adjTile.height &&
-                  col >= adjTile.col && col < adjTile.col + adjTile.width) {
+              if (canExpand) {
+                const originalWidth = adjacentTile.width;
+                adjacentTile.width += expansionWidth;
                 
-                // Determine if we should split horizontally or vertically
-                if (adjTile.width > 1 && col === adjTile.col + adjTile.width - 1) {
-                  // Shrink width
-                  newWidth--;
-                  canShrink = true;
-                } 
-                else if (adjTile.height > 1 && row === adjTile.row + adjTile.height - 1) {
-                  // Shrink height
-                  newHeight--;
-                  canShrink = true;
+                // Mark the new area as occupied
+                for (let r = adjacentTile.row; r < adjacentTile.row + adjacentTile.height; r++) {
+                  for (let c = col; c < col + expansionWidth; c++) {
+                    grid.cells[r][c] = adjacentTileIndex;
+                  }
                 }
                 
-                if (canShrink) {
-                  // Clear the tile's current area
-                  clearArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height);
-                  
-                  // Update dimensions
-                  adjTile.width = newWidth;
-                  adjTile.height = newHeight;
-                  
-                  // Reoccupy the new area
-                  occupyArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height, adjTile.index);
-                  
-                  return true;
-                }
+                expanded = true;
+                break;
               }
             }
           }
-          return false;
-        },
-        
-        // 4. Search for a nearby small tile that can be moved here
-        () => {
-          // Scan for small 1x1 tiles that could be relocated
-          const movableTiles = positionedTiles.filter(t => t.width === 1 && t.height === 1);
           
-          for (const movableTile of movableTiles) {
-            // Skip tiles too far away (arbitrary limit to improve performance)
-            const distance = Math.abs(movableTile.row - row) + Math.abs(movableTile.col - col);
-            if (distance > 5) continue; // Only consider nearby tiles
+          // If no expansion was possible, create a new small tile for this gap
+          if (!expanded && maxWidth > 0 && maxHeight > 0) {
+            // Find a tile we can clone
+            let newTileIndex = sortedTopics.length > 0 ? sortedTopics[0].index : 0;
+            const cloneSource = positionedTiles.find(t => t.index === newTileIndex);
             
-            // Check if the original position will be fillable after moving
-            const originalRow = movableTile.row;
-            const originalCol = movableTile.col;
-            
-            // Temporarily clear the tile
-            clearArea(originalRow, originalCol, 1, 1);
-            
-            // Check if an adjacent tile can expand to fill the original position
-            let originalFillable = false;
-            
-            // Check adjacent positions to the original position
-            const originalAdjacent = [
-              { r: originalRow - 1, c: originalCol }, // Above
-              { r: originalRow, c: originalCol - 1 }, // Left
-              { r: originalRow + 1, c: originalCol }, // Below
-              { r: originalRow, c: originalCol + 1 }  // Right
-            ];
-            
-            for (const adjPos of originalAdjacent) {
-              if (adjPos.r < 0 || adjPos.c < 0 || adjPos.r >= grid.height || adjPos.c >= grid.width) continue;
+            // Create a new tile filling the gap
+            if (cloneSource) {
+              const gapTile = {
+                topic: cloneSource.topic,
+                index: cloneSource.index,
+                row: row,
+                col: col,
+                width: maxWidth,
+                height: maxHeight
+              };
               
-              const adjTileIndex = grid.cells[adjPos.r][adjPos.c];
-              if (adjTileIndex === null) continue;
+              // Add the new tile to positioned tiles
+              positionedTiles.push(gapTile);
               
-              // If an adjacent tile exists, we can potentially fill the original position
-              originalFillable = true;
-              break;
-            }
-            
-            if (originalFillable) {
-              // Now move the tile to the gap
-              movableTile.row = row;
-              movableTile.col = col;
-              
-              // Mark the new position as occupied
-              occupyArea(row, col, 1, 1, movableTile.index);
-              
-              return true;
-            } else {
-              // If not fillable, restore the original occupation
-              occupyArea(originalRow, originalCol, 1, 1, movableTile.index);
-            }
-          }
-          return false;
-        }
-      ];
-      
-      // Try each strategy until one works
-      for (const strategy of strategies) {
-        if (strategy()) {
-          break; // Stop if a strategy succeeded
-        }
-      }
-    });
-    
-    // Final check for remaining gaps - emergency fill
-    for (let row = 0; row <= actualMaxRow; row++) {
-      for (let col = 0; col < grid.width; col++) {
-        if (grid.cells[row][col] === null) {
-          // Emergency measure: extend any adjacent tile
-          const adjacentPositions = [
-            { r: row - 1, c: col }, // Above
-            { r: row, c: col - 1 }, // Left
-            { r: row + 1, c: col }, // Below
-            { r: row, c: col + 1 }  // Right
-          ];
-          
-          for (const pos of adjacentPositions) {
-            if (pos.r < 0 || pos.c < 0 || pos.r >= grid.height || pos.c >= grid.width) continue;
-            
-            const adjTileIndex = grid.cells[pos.r][pos.c];
-            if (adjTileIndex === null) continue;
-            
-            const adjTile = positionedTiles.find(t => t.index === adjTileIndex);
-            
-            // Always extend horizontally or vertically depending on position
-            if (pos.r === row - 1) { // Tile is above
-              clearArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height);
-              adjTile.height += 1;
-              occupyArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height, adjTile.index);
-              break;
-            } 
-            else if (pos.c === col - 1) { // Tile is to the left
-              clearArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height);
-              adjTile.width += 1;
-              occupyArea(adjTile.row, adjTile.col, adjTile.width, adjTile.height, adjTile.index);
-              break;
+              // Mark the gap area as occupied
+              for (let r = row; r < row + maxHeight; r++) {
+                for (let c = col; c < col + maxWidth; c++) {
+                  grid.cells[r][c] = gapTile.index;
+                }
+              }
             }
           }
         }
@@ -493,7 +383,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       height: tile.height
     }));
     
-    return { tiles, maxRow: actualMaxRow };
+    return { tiles, maxRow: actualMaxRow + 1 }; // +1 because grid is 1-indexed
   }, [topics]);
 
   // Get tile class name based on dimensions
