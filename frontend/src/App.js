@@ -21,6 +21,14 @@ function App() {
     setInsights(null);
     setLoadingStep('summaries');
     
+    // Scroll down to show the loading indicator
+    setTimeout(() => {
+      window.scrollTo({
+        top: document.querySelector('.loading').getBoundingClientRect().top + window.pageYOffset - 100,
+        behavior: 'smooth'
+      });
+    }, 100);
+    
     try {
       // Build query parameters
       const queryParams = new URLSearchParams({
@@ -149,7 +157,9 @@ function App() {
       <header className="app-header">
         <div className="container">
           <div className="header-content">
-            <img src={logo} alt="Uniflux Logo" className="app-logo" />
+            <div className="logo-container">
+              <img src={logo} alt="Uniflux Logo" className="app-logo" />
+            </div>
             <h1>Uniflux</h1>
           </div>
           <p>Aggregate, summarize, and gain insights from multiple news sources</p>

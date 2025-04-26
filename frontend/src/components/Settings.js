@@ -179,122 +179,120 @@ const Settings = ({ onFetchSummaries }) => {
 
   return (
     <div className="settings-section">
-      <div className="card">
-        <div className="header-container">
-          <h2>News Settings</h2>
-          <div className="time-period-container">
-            <label htmlFor="period" className="time-period-label">Time Period:</label>
-            <select 
-              id="period" 
-              value={period} 
-              onChange={handlePeriodChange}
-              className="time-period-select"
-            >
-              <option value="1d">Last 24 hours</option>
-              <option value="2d">Last 2 days</option>
-              <option value="1w">Last week</option>
-            </select>
-          </div>
+      <div className="header-container">
+        <h2>News Settings</h2>
+        <div className="time-period-container">
+          <label htmlFor="period" className="time-period-label">Time Period:</label>
+          <select 
+            id="period" 
+            value={period} 
+            onChange={handlePeriodChange}
+            className="time-period-select"
+          >
+            <option value="1d">Last 24 hours</option>
+            <option value="2d">Last 2 days</option>
+            <option value="1w">Last week</option>
+          </select>
         </div>
-        {loading ? (
-          <div className="loading-indicator">Loading sources...</div>
-        ) : error ? (
-          <div className="error-message">
-            <p>Error: {error}</p>
-            <p>Make sure the Flask backend is running properly.</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <div className="source-categories-grid">
-              {Object.keys(categories).length === 0 ? (
-                <p className="no-sources">No sources available in the database.</p>
-              ) : (
-                Object.entries(categories).map(([category, sources]) => (
-                  <div key={category} className="source-category-block">
-                    <div className="category-header">
-                      <label className="category-checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={isCategorySelected(category)}
-                          onChange={() => handleCategoryToggle(category)}
-                          className="category-checkbox"
-                          ref={el => {
-                            if (el) {
-                              el.indeterminate = isCategoryPartiallySelected(category);
-                            }
-                          }}
-                        />
-                        <h3>{category}</h3>
-                      </label>
-                    </div>
-                    <div className="source-list-container-grid">
-                      {sources.map(source => (
-                        <div key={source.id} className="source-item">
-                          <label className="checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={selectedSources.includes(source.url)}
-                              onChange={() => handleSourceToggle(source.url)}
-                            />
-                            <span className="source-name" title={source.url}>
-                              {source.name}
-                            </span>
-                          </label>
-                        </div>
-                      ))}
+      </div>
+      {loading ? (
+        <div className="loading-indicator">Loading sources...</div>
+      ) : error ? (
+        <div className="error-message">
+          <p>Error: {error}</p>
+          <p>Make sure the Flask backend is running properly.</p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="source-categories-grid">
+            {Object.keys(categories).length === 0 ? (
+              <p className="no-sources">No sources available in the database.</p>
+            ) : (
+              Object.entries(categories).map(([category, sources]) => (
+                <div key={category} className="source-category-block">
+                  <div className="category-header">
+                    <label className="category-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={isCategorySelected(category)}
+                        onChange={() => handleCategoryToggle(category)}
+                        className="category-checkbox"
+                        ref={el => {
+                          if (el) {
+                            el.indeterminate = isCategoryPartiallySelected(category);
+                          }
+                        }}
+                      />
+                      <h3>{category}</h3>
+                    </label>
+                  </div>
+                  <div className="source-list-container-grid">
+                    {sources.map(source => (
+                      <div key={source.id} className="source-item">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedSources.includes(source.url)}
+                            onChange={() => handleSourceToggle(source.url)}
+                          />
+                          <span className="source-name" title={source.url}>
+                            {source.name}
+                          </span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {/* Custom Sources section as a category block */}
+            <div className="source-category-block">
+              <div className="category-header">
+                <h3>Custom Sources</h3>
+              </div>
+              <div className="source-list-container-grid">
+                {customSources.map((source, index) => (
+                  <div key={index} className="source-item custom-source-item">
+                    <div className="custom-source-row">
+                      <input
+                        type="text"
+                        className="custom-source-input"
+                        value={source}
+                        onChange={(e) => handleCustomSourceChange(index, e.target.value)}
+                        onKeyPress={(e) => handleCustomSourceKeyPress(e, index)}
+                        placeholder="Enter source URL"
+                      />
+                      {customSources.length > 1 && source.trim() === '' && (
+                        <button 
+                          type="button" 
+                          className="remove-source-btn"
+                          onClick={() => removeCustomSource(index)}
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))
-              )}
-
-              {/* Custom Sources section as a category block */}
-              <div className="source-category-block">
-                <div className="category-header">
-                  <h3>Custom Sources</h3>
-                </div>
-                <div className="source-list-container-grid">
-                  {customSources.map((source, index) => (
-                    <div key={index} className="source-item custom-source-item">
-                      <div className="custom-source-row">
-                        <input
-                          type="text"
-                          className="custom-source-input"
-                          value={source}
-                          onChange={(e) => handleCustomSourceChange(index, e.target.value)}
-                          onKeyPress={(e) => handleCustomSourceKeyPress(e, index)}
-                          placeholder="Enter source URL"
-                        />
-                        {customSources.length > 1 && source.trim() === '' && (
-                          <button 
-                            type="button" 
-                            className="remove-source-btn"
-                            onClick={() => removeCustomSource(index)}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
-            <div className="selected-count">
-              Selected sources: {selectedSources.length}
-            </div>
+          </div>
+          <div className="selected-count">
+            Selected sources: {selectedSources.length}
+          </div>
 
-            <div className="form-actions">
-              <button 
-                type="submit" 
-                className="btn btn-primary"
-                disabled={selectedSources.length === 0 && customSources.every(source => source.trim() === '')}
-              >
-                Generate Summaries
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+          <div className="form-actions">
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={selectedSources.length === 0 && customSources.every(source => source.trim() === '')}
+            >
+              Generate Summaries
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 };

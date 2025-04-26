@@ -134,7 +134,7 @@
 }
 
 .source-category-block {
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: 0.375rem;
   overflow: hidden;
   width: calc(25% - 1rem); /* Narrower blocks, 4 per row */
@@ -142,6 +142,8 @@
   margin-bottom: 0.5rem;
   display: flex;
   flex-direction: column;
+  background-color: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
 }
 
 .category-header {
