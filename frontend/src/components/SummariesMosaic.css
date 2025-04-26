@@ -28,43 +28,6 @@
   box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3) !important;
 }
 
-/* Generate Insights button */
-.tile-insight-button {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  opacity: 0;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--color-primary-dark);
-  border: none;
-  border-radius: 4px;
-  padding: 8px 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mosaic-tile:hover .tile-insight-button {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-.tile-insight-button:hover {
-  background: white;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
-}
-
-.button-icon {
-  font-size: 16px;
-}
-
 /* Tooltip */
 .tooltip {
   position: relative;
@@ -301,4 +264,18 @@
     margin-bottom: 10px;
     min-height: 120px;
   }
+}
+
+/* Remove Generate Insights button and related styles */
+.tile-insight-button,
+.mosaic-tile:hover .tile-insight-button,
+.tile-insight-button:hover,
+.button-icon {
+  display: none;
+}
+
+/* Remove blurring effect */
+.mosaic-tile:hover .tile-summary {
+  opacity: 0.9;
+  filter: none;
 } 

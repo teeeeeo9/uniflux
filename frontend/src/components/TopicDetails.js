@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './TopicDetails.css';
 
-const TopicDetails = ({ topic, hasInsights = false }) => {
+const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
   const [activeTab, setActiveTab] = useState('messages');
 
   if (!topic) {
@@ -10,6 +10,12 @@ const TopicDetails = ({ topic, hasInsights = false }) => {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+  };
+
+  const handleGenerateInsights = () => {
+    if (onGenerateInsights) {
+      onGenerateInsights();
+    }
   };
 
   return (
@@ -62,19 +68,33 @@ const TopicDetails = ({ topic, hasInsights = false }) => {
           <div className="messages-section">
             <h3 className="content-subtitle">Original Messages</h3>
             {topic.message_ids && topic.message_ids.length > 0 ? (
-              <div className="message-list">
-                {topic.message_ids.map((messageId, idx) => (
-                  <div key={idx} className="message-item">
-                    <div className="message-header">
-                      <span className="message-id">Message #{messageId}</span>
-                      <span className="message-channel">Channel: Unknown</span>
+              <>
+                <div className="message-list">
+                  {topic.message_ids.map((messageId, idx) => (
+                    <div key={idx} className="message-item">
+                      <div className="message-header">
+                        <span className="message-id">Message #{messageId}</span>
+                        <span className="message-channel">Channel: Unknown</span>
+                      </div>
+                      <p className="message-text">
+                        Message content will be displayed here when available.
+                      </p>
                     </div>
-                    <p className="message-text">
-                      Message content will be displayed here when available.
-                    </p>
+                  ))}
+                </div>
+                
+                {!hasInsights && (
+                  <div className="insight-action-container">
+                    <button className="generate-insights-button" onClick={handleGenerateInsights}>
+                      <span className="button-icon">✨</span>
+                      Discover actionable insights
+                    </button>
+                    {/* <p className="insight-hint">
+                      Click to get actionable insights based on these messages
+                    </p> */}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <p className="no-content">No original messages available for this topic.</p>
             )}

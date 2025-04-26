@@ -190,15 +190,6 @@ function App() {
           <div className="app-section summaries-section-container">
             <div className="section-header">
               <h2 className="section-title">News Summaries</h2>
-              {!insights && (
-                <button 
-                  className="btn btn-primary generate-insights-btn"
-                  onClick={fetchInsights}
-                  disabled={loading}
-                >
-                  Generate Insights
-                </button>
-              )}
             </div>
             
             <SummariesMosaic 
@@ -228,7 +219,11 @@ function App() {
         {/* Topic Details Section */}
         {selectedTopic && (
           <div className="app-section details-section-container">
-            <TopicDetails topic={selectedTopic} hasInsights={!!insights} />
+            <TopicDetails 
+              topic={selectedTopic} 
+              hasInsights={!!insights} 
+              onGenerateInsights={!insights ? fetchInsights : undefined}
+            />
           </div>
         )}
       </main>

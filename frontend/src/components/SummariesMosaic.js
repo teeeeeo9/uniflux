@@ -464,20 +464,6 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                   <p className="tile-summary">{truncateSummary(topic.summary, getSummaryLength(width, height))}</p>
                 )}
                 
-                {!showInsights && (
-                  <button 
-                    className="tile-insight-button tooltip"
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent triggering the tile click
-                      onSelectTopic(index);
-                    }}
-                  >
-                    <span className="button-icon">✨</span>
-                    Generate Insights
-                    <span className="tooltip-text">Click to get underlying messages and actionable insights</span>
-                  </button>
-                )}
-                
                 <div className="tile-footer">
                   <span className="importance-badge">
                     {topic.importance}/10
