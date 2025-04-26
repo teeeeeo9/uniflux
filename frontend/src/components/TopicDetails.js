@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './TopicDetails.css';
 
-const TopicDetails = ({ topic }) => {
+const TopicDetails = ({ topic, hasInsights = false }) => {
   const [activeTab, setActiveTab] = useState('messages');
 
   if (!topic) {
@@ -16,16 +16,21 @@ const TopicDetails = ({ topic }) => {
     <div className="topic-details">
       <div className="topic-details-header">
         <h2 className="topic-details-title">{topic.topic}</h2>
-        <div className="importance-indicator">
-          <span className="importance-text">Importance:</span>
-          <span 
-            className="importance-value"
-            style={{ 
-              backgroundColor: getImportanceColor(topic.importance) 
-            }}
-          >
-            {topic.importance}/10
-          </span>
+        <div className="topic-meta">
+          {topic.metatopic && (
+            <span className="topic-metatopic">{topic.metatopic}</span>
+          )}
+          <div className="importance-indicator">
+            <span className="importance-text">Importance:</span>
+            <span 
+              className="importance-value"
+              style={{ 
+                backgroundColor: getImportanceColor(topic.importance) 
+              }}
+            >
+              {topic.importance}/10
+            </span>
+          </div>
         </div>
       </div>
       
@@ -39,12 +44,14 @@ const TopicDetails = ({ topic }) => {
         <button 
           className={`tab-button ${activeTab === 'insights' ? 'active' : ''}`}
           onClick={() => handleTabChange('insights')}
+          disabled={!hasInsights || !topic.insights}
         >
           Insights & Analysis
         </button>
         <button 
           className={`tab-button ${activeTab === 'execution' ? 'active' : ''}`}
           onClick={() => handleTabChange('execution')}
+          disabled={!hasInsights || !topic.insights}
         >
           Execution
         </button>
@@ -77,7 +84,7 @@ const TopicDetails = ({ topic }) => {
         {activeTab === 'insights' && (
           <div className="insights-section">
             <h3 className="content-subtitle">Insights & Analysis</h3>
-            {topic.insights ? (
+            {hasInsights && topic.insights ? (
               <div className="insights-content">
                 <div className="insight-block">
                   <h4 className="insight-title">General</h4>
@@ -100,7 +107,11 @@ const TopicDetails = ({ topic }) => {
                 </div>
               </div>
             ) : (
-              <p className="no-content">No insights available for this topic.</p>
+              <p className="no-content">
+                {hasInsights 
+                  ? 'No insights available for this topic.' 
+                  : 'Generate insights first to see analysis for this topic.'}
+              </p>
             )}
           </div>
         )}
@@ -108,12 +119,8 @@ const TopicDetails = ({ topic }) => {
         {activeTab === 'execution' && (
           <div className="execution-section">
             <h3 className="content-subtitle">Execution Options</h3>
-            <p className="execution-placeholder">
-              This section will allow users to take action based on insights.
-              (Feature coming soon)
-            </p>
             
-            {topic.insights && topic.insights.exec_options_long && topic.insights.exec_options_long.length > 0 ? (
+            {hasInsights && topic.insights && topic.insights.exec_options_long && topic.insights.exec_options_long.length > 0 ? (
               <div className="execution-options">
                 {topic.insights.exec_options_long.map((option, idx) => (
                   <div key={idx} className="execution-option">
@@ -125,8 +132,17 @@ const TopicDetails = ({ topic }) => {
                 ))}
               </div>
             ) : (
-              <p className="no-content">No execution options available for this topic.</p>
+              <p className="no-content">
+                {hasInsights 
+                  ? 'No execution options available for this topic.' 
+                  : 'Generate insights first to see execution options.'}
+              </p>
             )}
+            
+            <p className="execution-placeholder">
+              This section will allow users to take action based on insights.
+              (Feature coming soon)
+            </p>
           </div>
         )}
       </div>

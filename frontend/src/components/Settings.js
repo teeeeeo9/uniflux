@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Settings.css';
 
-const Settings = ({ onFetchInsights }) => {
+const Settings = ({ onFetchSummaries }) => {
   // State for time period
   const [period, setPeriod] = useState('1d');
   
@@ -173,8 +173,8 @@ const Settings = ({ onFetchInsights }) => {
     
     const allSources = [...selectedSources, ...validCustomSources];
     
-    console.log('Submitting analysis with settings:', { period, sources: allSources });
-    onFetchInsights({ period, sources: allSources });
+    console.log('Generating summaries with settings:', { period, sources: allSources });
+    onFetchSummaries({ period, sources: allSources });
   };
 
   return (
@@ -282,26 +282,15 @@ const Settings = ({ onFetchInsights }) => {
             <div className="selected-count">
               Selected sources: {selectedSources.length}
             </div>
-            
+
             <div className="form-actions">
               <button 
                 type="submit" 
                 className="btn btn-primary"
                 disabled={selectedSources.length === 0 && customSources.every(source => source.trim() === '')}
               >
-                Generate Insights
+                Generate Summaries
               </button>
-              <div className="process-steps">
-                <div className="step">
-                  <span className="step-number">1</span>
-                  <span className="step-name">Generate Summaries</span>
-                </div>
-                <div className="step-arrow">→</div>
-                <div className="step">
-                  <span className="step-number">2</span>
-                  <span className="step-name">Generate Insights</span>
-                </div>
-              </div>
             </div>
           </form>
         )}

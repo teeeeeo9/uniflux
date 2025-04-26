@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import Settings from './components/Settings';
-import TopicsList from './components/TopicsList';
+import SummariesMosaic from './components/SummariesMosaic';
 import TopicDetails from './components/TopicDetails';
 import './App.css';
 
 function App() {
-  const [summary, setSummary] = useState(null);
+  const [summaries, setSummaries] = useState(null);
+  const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTopicIndex, setSelectedTopicIndex] = useState(null);
-  const [loadingStep, setLoadingStep] = useState(null); // Track which step is loading
+  const [loadingStep, setLoadingStep] = useState(null);
 
-  const fetchInsights = async (settings) => {
+  const fetchSummaries = async (settings) => {
     setLoading(true);
     setError(null);
     setSelectedTopicIndex(null);
-    setSummary(null);
+    setSummaries(null);
+    setInsights(null);
     setLoadingStep('summaries');
     
     try {
@@ -27,7 +29,7 @@ function App() {
 
       console.log(`Fetching summaries from: /summaries?${queryParams}`);
       
-      // Step 1: Fetch summaries
+      // Fetch summaries
       const summariesResponse = await fetch(`/summaries?${queryParams}`, {
         method: 'GET',
         headers: {
@@ -58,22 +60,40 @@ function App() {
       // Check if we have valid summaries
       if (!summariesData.topics || summariesData.topics.length === 0) {
         console.log('No topics found in summaries');
-        setSummary({ topics: [] });
-        setLoading(false);
-        return;
+        setSummaries({ topics: [] });
+      } else {
+        setSummaries(summariesData);
       }
-      
-      // Step 2: Get insights for the summaries
-      setLoadingStep('insights');
+    } catch (err) {
+      console.error('Error fetching summaries:', err);
+      setError(err.message || 'An error occurred while processing news data');
+    } finally {
+      setLoading(false);
+      setLoadingStep(null);
+    }
+  };
+
+  const fetchInsights = async () => {
+    if (!summaries || !summaries.topics || summaries.topics.length === 0) {
+      setError('No summaries available to generate insights.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setLoadingStep('insights');
+    
+    try {
       console.log('Fetching insights for summaries');
       
+      // Send the POST request to get insights
       const insightsResponse = await fetch('/insights', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(summariesData)
+        body: JSON.stringify(summaries)
       });
       
       // Handle non-OK insights response
@@ -95,11 +115,11 @@ function App() {
       const insightsData = await insightsResponse.json();
       console.log('Insights response:', insightsData);
       
-      // Set the final data with insights
-      setSummary(insightsData);
+      // Set the insights data
+      setInsights(insightsData);
     } catch (err) {
-      console.error('Error in pipeline:', err);
-      setError(err.message || 'An error occurred while processing news data');
+      console.error('Error fetching insights:', err);
+      setError(err.message || 'An error occurred while generating insights');
     } finally {
       setLoading(false);
       setLoadingStep(null);
@@ -111,10 +131,17 @@ function App() {
   };
 
   // Get the selected topic if one is selected
-  const selectedTopic = summary && 
-    summary.topics && 
+  const selectedTopic = insights && 
+    insights.topics && 
     selectedTopicIndex !== null ? 
-    summary.topics[selectedTopicIndex] : null;
+    insights.topics[selectedTopicIndex] : 
+    summaries && 
+    summaries.topics && 
+    selectedTopicIndex !== null ? 
+    summaries.topics[selectedTopicIndex] : null;
+
+  // Determine if we have topics to display (either from summaries or insights)
+  const displayTopics = insights?.topics || summaries?.topics || [];
 
   return (
     <div className="app">
@@ -125,9 +152,12 @@ function App() {
         </div>
       </header>
       <main className="container">
-        {/* Top section - Settings */}
-        <Settings onFetchInsights={fetchInsights} />
+        {/* Settings Section */}
+        <div className="app-section settings-section-container">
+          <Settings onFetchSummaries={fetchSummaries} />
+        </div>
         
+        {/* Loading and Error States */}
         {loading && (
           <div className="loading">
             {loadingStep === 'summaries' ? 'Generating summaries...' : 'Generating insights...'}
@@ -141,18 +171,51 @@ function App() {
           </div>
         )}
         
-        {/* Middle section - Topics list */}
-        {!loading && !error && summary && summary.topics && (
-          <TopicsList 
-            topics={summary.topics} 
-            onSelectTopic={handleSelectTopic}
-            selectedTopicId={selectedTopicIndex}
-          />
+        {/* Summaries Section */}
+        {!loading && !error && summaries && summaries.topics && summaries.topics.length > 0 && (
+          <div className="app-section summaries-section-container">
+            <div className="section-header">
+              <h2 className="section-title">News Summaries</h2>
+              {!insights && (
+                <button 
+                  className="btn btn-primary generate-insights-btn"
+                  onClick={fetchInsights}
+                  disabled={loading}
+                >
+                  Generate Insights
+                </button>
+              )}
+            </div>
+            
+            <SummariesMosaic 
+              topics={summaries.topics} 
+              onSelectTopic={handleSelectTopic}
+              selectedTopicId={selectedTopicIndex}
+            />
+          </div>
         )}
         
-        {/* Bottom section - Topic details */}
+        {/* Insights Section */}
+        {!loading && !error && insights && insights.topics && insights.topics.length > 0 && (
+          <div className="app-section insights-section-container">
+            <div className="section-header">
+              <h2 className="section-title">Generated Insights</h2>
+            </div>
+            
+            <SummariesMosaic 
+              topics={insights.topics} 
+              onSelectTopic={handleSelectTopic}
+              selectedTopicId={selectedTopicIndex}
+              showInsights={true}
+            />
+          </div>
+        )}
+        
+        {/* Topic Details Section */}
         {selectedTopic && (
-          <TopicDetails topic={selectedTopic} />
+          <div className="app-section details-section-container">
+            <TopicDetails topic={selectedTopic} hasInsights={!!insights} />
+          </div>
         )}
       </main>
     </div>
