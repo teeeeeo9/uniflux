@@ -2,6 +2,110 @@
   margin-bottom: 1rem;
 }
 
+/* Importance-based styles */
+.importance-neutral {
+  background-color: #909090 !important;
+  color: white;
+  opacity: 0.7 !important;
+}
+
+.importance-light {
+  background-color: #5c89b8 !important;
+  color: white;
+  opacity: 0.8 !important;
+}
+
+.importance-highlighted {
+  background-image: linear-gradient(135deg, var(--color-primary-dark), var(--color-secondary)) !important;
+  color: white;
+  opacity: 0.9 !important;
+}
+
+.importance-very-highlighted {
+  background-image: linear-gradient(135deg, var(--color-primary), var(--color-secondary), var(--color-tertiary)) !important;
+  color: white;
+  opacity: 1 !important;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3) !important;
+}
+
+/* Generate Insights button */
+.tile-insight-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  opacity: 0;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-primary-dark);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mosaic-tile:hover .tile-insight-button {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.tile-insight-button:hover {
+  background: white;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+}
+
+.button-icon {
+  font-size: 16px;
+}
+
+/* Tooltip */
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip .tooltip-text {
+  visibility: hidden;
+  width: 200px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 8px;
+  position: absolute;
+  z-index: 10;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.tooltip .tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+}
+
+.tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
 .mosaic-container {
   display: grid;
   gap: 8px;

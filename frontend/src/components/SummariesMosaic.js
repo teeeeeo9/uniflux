@@ -16,9 +16,12 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     return 'var(--color-other)';
   };
 
-  // Calculate color opacity based on importance
-  const getImportanceOpacity = (importance) => {
-    return Math.max(0.5, Math.min(1.0, importance / 10));
+  // Get importance-based class
+  const getImportanceClass = (importance) => {
+    if (importance >= 9) return 'importance-very-highlighted';
+    if (importance >= 7) return 'importance-highlighted';
+    if (importance >= 5) return 'importance-light';
+    return 'importance-neutral';
   };
 
   // Get initial size based on content, importance and randomness
@@ -318,8 +321,8 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
               for (let r = adjacentTile.row; r < adjacentTile.row + adjacentTile.height; r++) {
                 if (r >= grid.height || (grid.cells[r][col] !== null && grid.cells[r][col] !== adjacentTileIndex)) {
                   canExpand = false;
-                  break;
-                }
+              break;
+            }
               }
               
               if (canExpand) {
@@ -431,16 +434,15 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       >
         {packedLayout.tiles.map(({ topic, index, gridColumnStart, gridColumnEnd, gridRowStart, gridRowEnd, width, height }) => {
           const baseColor = getMetatopicColor(topic.metatopic);
-          const opacity = getImportanceOpacity(topic.importance || 5);
+          const importanceClass = getImportanceClass(topic.importance || 5);
           const tileClassName = getTileClassName(width, height);
           
           return (
             <div 
               key={index}
-              className={`mosaic-tile ${tileClassName} ${selectedTopicId === index ? 'selected' : ''}`}
+              className={`mosaic-tile ${tileClassName} ${importanceClass} ${selectedTopicId === index ? 'selected' : ''}`}
               style={{ 
                 backgroundColor: baseColor,
-                opacity: opacity,
                 gridColumnStart,
                 gridColumnEnd,
                 gridRowStart,
@@ -460,6 +462,20 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                   <div className="tile-insights-indicator">Has insights</div>
                 ) : (
                   <p className="tile-summary">{truncateSummary(topic.summary, getSummaryLength(width, height))}</p>
+                )}
+                
+                {!showInsights && (
+                  <button 
+                    className="tile-insight-button tooltip"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the tile click
+                      onSelectTopic(index);
+                    }}
+                  >
+                    <span className="button-icon">✨</span>
+                    Generate Insights
+                    <span className="tooltip-text">Click to get underlying messages and actionable insights</span>
+                  </button>
                 )}
                 
                 <div className="tile-footer">
