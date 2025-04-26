@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import re  # Import the regular expression module
 from config import DATABASE, LOG_FILE
-from data_summarizer import process_and_aggregate_news, generate_insights
+from data_summarizer import process_and_aggregate_news, generate_insights, main as summarizer_main
 import threading
 from functools import wraps
 
@@ -191,7 +191,8 @@ async def get_summaries():
                 "topic": "Topic Name",
                 "summary": "Detailed summary...",
                 "message_ids": [1, 2, 3],
-                "importance": 8
+                "importance": 8,
+                "metatopic": "Category"
             },
             ...
         ]
@@ -216,8 +217,9 @@ async def get_summaries():
     
     try:
         # Generate summaries with direct await
-        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
-        summaries = await process_and_aggregate_news(period, sources)
+        logger.info(f"PROCESS [{request_id}] - Calling main with period={period}, sources={sources}")
+        # Use main from data_summarizer which includes all enhancements
+        summaries = await summarizer_main(period, sources, include_insights=False)
         
         if not summaries:
             logger.warning(f"PROCESS [{request_id}] - No summaries generated")
@@ -377,7 +379,6 @@ async def get_sources():
         logger.error(traceback.format_exc())
         return jsonify({"error": error_message}), 500
 
-# Legacy endpoint for compatibility
 @app.route('/insights', methods=['GET'])
 async def get_insights_legacy():
     """
@@ -396,6 +397,7 @@ async def get_insights_legacy():
                 "summary": "Detailed summary...",
                 "message_ids": [1, 2, 3],
                 "importance": 8,
+                "metatopic": "Category",
                 "insights": {
                     "general": "...",
                     "long": "...",
@@ -429,16 +431,13 @@ async def get_insights_legacy():
     
     try:
         # Generate summaries with direct await
-        logger.info(f"PROCESS [{request_id}] - Calling process_and_aggregate_news with period={period}, sources={sources}")
-        summaries = await process_and_aggregate_news(period, sources)
+        logger.info(f"PROCESS [{request_id}] - Calling main with period={period}, sources={sources}, include_insights=True")
+        # Use the main function which now includes all enhancements plus insights
+        topics_with_insights = await summarizer_main(period, sources, include_insights=True)
         
-        if not summaries:
-            logger.warning(f"PROCESS [{request_id}] - No summaries generated")
+        if not topics_with_insights:
+            logger.warning(f"PROCESS [{request_id}] - No topics generated")
             return jsonify({"topics": []}), 200
-        
-        # Generate insights for each topic with direct await
-        logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
-        topics_with_insights = await generate_insights(summaries)
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")

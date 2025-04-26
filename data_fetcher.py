@@ -17,6 +17,7 @@ import telethon.errors
 from parser import extract_summary  # Import only the extraction function, get_summary_from_db is used internally
 from config import DATABASE, LOG_FILE, TELEGRAM_SESSION
 from google import genai
+from instruction_templates import INSTRUCTIONS
 
 
 # Configure module-specific logger
@@ -758,13 +759,10 @@ async def clean_rss_summary(raw_summary: str) -> str:
     # Try cleaning with Gemini if available
     if gemini_client:
         logger.info("Attempting to clean HTML content using Gemini.")
-        prompt = f"""Remove ALL HTML and XML tags from the text below and return ONLY the plain text content.
-Do not add any explanation or commentary.
-Keep the original text meaning intact.
-
-TEXT TO CLEAN:
-{raw_summary}"""
-
+        
+        # Use the template from instruction_templates.py
+        prompt = INSTRUCTIONS["clean_html"].format(raw_text=raw_summary)
+        
         try:
             # Use the async generate_content method
             response = await gemini_client.aio.models.generate_content(
@@ -790,14 +788,14 @@ TEXT TO CLEAN:
                 logger.info(f"Successfully cleaned summary using Gemini. Original length: {len(raw_summary)}, Cleaned length: {len(cleaned_text)}")
                 return cleaned_text
             else:
-                logger.warning("Gemini cleaning did not remove all HTML or returned empty string. Falling back to regex.")
+                logger.warning("Gemini cleaning did not remove all HTML or returned empty string. Returning the original.")
+                
         except Exception as e:
             logger.error(f"Error cleaning summary with Gemini: {e}")
             logger.error(traceback.format_exc())
             logger.warning("Falling back to regex-based cleaning.")
     else:
         logger.warning("Gemini client not configured.")
-    
     
     return raw_summary
 

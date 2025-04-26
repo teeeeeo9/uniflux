@@ -401,19 +401,211 @@ async def generate_insights(summary_data):
     logger.info(f"Completed generating insights for {len(summary_data)} topics")
     return enhanced_summaries
 
+async def classify_topics_to_metatopics(topics):
+    """
+    Classifies each topic into a broader metatopic category.
+    
+    Args:
+        topics: List of topic dictionaries from summarization
+        
+    Returns:
+        The same list of topics with a 'metatopic' field added to each
+    """
+    logger.info(f"Starting metatopic classification for {len(topics)} topics")
+    
+    if not topics:
+        logger.warning("No topics to classify")
+        return topics
+    
+    # Prepare the content for the prompt
+    topics_text = []
+    for i, topic in enumerate(topics):
+        topics_text.append(f"Topic {i+1}: {topic.get('topic', 'Unknown')}\nSummary: {topic.get('summary', '')}")
+    
+    topics_content = "\n\n".join(topics_text)
+    
+    try:
+        # Create a fresh client for this request to avoid connection issues
+        request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+        
+        prompt = INSTRUCTIONS.get("metatopic_classification", "").format(topics=topics_content)
+        logger.debug(f"Sending metatopic classification prompt to Gemini")
+        
+        response = await request_client.aio.models.generate_content(
+            model=GEMINI_MODEL_INSIGHTS, contents=prompt
+        )
+        logger.debug("Received response from Gemini API")
+        
+        # Extract JSON from response
+        response_text = response.text
+        
+        # Find JSON content (may be wrapped in markdown code blocks)
+        if "```json" in response_text:
+            logger.debug("Found JSON content in markdown json code block")
+            json_start = response_text.find("```json") + 7
+            json_end = response_text.find("```", json_start)
+            json_str = response_text[json_start:json_end].strip()
+        elif "```" in response_text:
+            logger.debug("Found JSON content in markdown code block")
+            json_start = response_text.find("```") + 3
+            json_end = response_text.find("```", json_start)
+            json_str = response_text[json_start:json_end].strip()
+        else:
+            logger.debug("No markdown code blocks found, using raw response")
+            json_str = response_text
+            
+        # Parse the JSON
+        try:
+            metatopics_data = json.loads(json_str)
+            logger.info("Successfully parsed metatopic classification response")
+            
+            # Apply metatopics to the original topics list
+            if isinstance(metatopics_data, list) and len(metatopics_data) == len(topics):
+                for i, metatopic_info in enumerate(metatopics_data):
+                    if isinstance(metatopic_info, dict) and 'metatopic' in metatopic_info:
+                        topics[i]['metatopic'] = metatopic_info['metatopic']
+                    else:
+                        logger.warning(f"Unexpected format for metatopic at index {i}")
+                        topics[i]['metatopic'] = "Other"
+            else:
+                logger.warning(f"Unexpected metatopics response format: {metatopics_data}")
+                # Apply a default metatopic if the response format doesn't match
+                for topic in topics:
+                    topic['metatopic'] = "Other"
+                
+            return topics
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Raw response: {response_text}")
+            # Return original topics without metatopics in case of error
+            for topic in topics:
+                topic['metatopic'] = "Other"
+            return topics
+            
+    except Exception as e:
+        logger.error(f"Error in metatopic classification: {e}")
+        logger.error(traceback.format_exc())
+        # Return original topics without metatopics in case of error
+        for topic in topics:
+            topic['metatopic'] = "Other"
+        return topics
+
+async def rate_topic_importance(topics):
+    """
+    Rates the importance of each topic on a scale from 1 to 10.
+    
+    Args:
+        topics: List of topic dictionaries from summarization
+        
+    Returns:
+        The same list of topics with an 'importance' field added to each
+    """
+    logger.info(f"Starting importance rating for {len(topics)} topics")
+    
+    if not topics:
+        logger.warning("No topics to rate")
+        return topics
+    
+    # Prepare the content for the prompt
+    topics_text = []
+    for i, topic in enumerate(topics):
+        topics_text.append(f"Topic {i+1}: {topic.get('topic', 'Unknown')}\nSummary: {topic.get('summary', '')}")
+    
+    topics_content = "\n\n".join(topics_text)
+    
+    try:
+        # Create a fresh client for this request to avoid connection issues
+        request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+        
+        prompt = INSTRUCTIONS.get("importance_rating", "").format(topics=topics_content)
+        logger.debug(f"Sending importance rating prompt to Gemini")
+        
+        response = await request_client.aio.models.generate_content(
+            model=GEMINI_MODEL_INSIGHTS, contents=prompt
+        )
+        logger.debug("Received response from Gemini API")
+        
+        # Extract JSON from response
+        response_text = response.text
+        
+        # Find JSON content (may be wrapped in markdown code blocks)
+        if "```json" in response_text:
+            logger.debug("Found JSON content in markdown json code block")
+            json_start = response_text.find("```json") + 7
+            json_end = response_text.find("```", json_start)
+            json_str = response_text[json_start:json_end].strip()
+        elif "```" in response_text:
+            logger.debug("Found JSON content in markdown code block")
+            json_start = response_text.find("```") + 3
+            json_end = response_text.find("```", json_start)
+            json_str = response_text[json_start:json_end].strip()
+        else:
+            logger.debug("No markdown code blocks found, using raw response")
+            json_str = response_text
+            
+        # Parse the JSON
+        try:
+            importance_data = json.loads(json_str)
+            logger.info("Successfully parsed importance rating response")
+            
+            # Apply importance ratings to the original topics list
+            if isinstance(importance_data, list) and len(importance_data) == len(topics):
+                for i, importance_info in enumerate(importance_data):
+                    if isinstance(importance_info, dict) and 'importance' in importance_info:
+                        topics[i]['importance'] = importance_info['importance']
+                    else:
+                        logger.warning(f"Unexpected format for importance at index {i}")
+                        topics[i]['importance'] = 5  # Default mid-range importance
+            else:
+                logger.warning(f"Unexpected importance response format: {importance_data}")
+                # Apply a default importance if the response format doesn't match
+                for topic in topics:
+                    topic['importance'] = 5
+                
+            return topics
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Raw response: {response_text}")
+            # Return original topics with default importance in case of error
+            for topic in topics:
+                topic['importance'] = 5
+            return topics
+            
+    except Exception as e:
+        logger.error(f"Error in importance rating: {e}")
+        logger.error(traceback.format_exc())
+        # Return original topics with default importance in case of error
+        for topic in topics:
+            topic['importance'] = 5
+        return topics
+
 async def main(period='1d', sources=None, include_insights=False):
     """Main function to run the summarizer"""
     logger.info(f"Starting main function with period={period}, sources={sources}, include_insights={include_insights}")
     
     try:
+        # Step 1: Get the initial topic summaries
         result = await process_and_aggregate_news(period, sources)
         
         if not result:
             logger.warning("No results generated from summarization")
+            return []
         else:
             logger.info(f"Generated {len(result)} topic summaries")
+            
+            # Step 2: Enhance with metatopics
+            logger.info("Enhancing topics with metatopic classification")
+            result = await classify_topics_to_metatopics(result)
+            logger.info(f"Added metatopics to {len(result)} topics")
+            
+            # Step 3: Add importance ratings
+            logger.info("Rating topic importance")
+            result = await rate_topic_importance(result)
+            logger.info(f"Added importance ratings to {len(result)} topics")
              
-            # Generate insights if requested
+            # Step 4: Generate insights if requested
             if include_insights:
                 logger.info("Generating insights for topics")
                 result = await generate_insights(result)
