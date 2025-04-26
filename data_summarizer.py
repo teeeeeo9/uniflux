@@ -43,8 +43,11 @@ logger.info("Data summarizer module initializing")
 client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 GEMINI_MODEL_SUMMARIZER = os.getenv('GEMINI_MODEL_SUMMARIZER', 'gemini-1.5-pro')  # Default to gemini-1.5-pro if not specified
 GEMINI_MODEL_INSIGHTS = os.getenv('GEMINI_MODEL_INSIGHTS', 'gemini-1.5-pro')  # Default to gemini-1.5-pro if not specified
+GEMINI_MODEL_METATOPICS = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')  # Default to gemini-1.5-flash if not specified
+GEMINI_MODEL_IMPORTANCE = os.getenv('GEMINI_MODEL_IMPORTANCE', 'gemini-1.5-flash')  # Default to gemini-1.5-flash if not specified
 
 logger.info("Gemini API configured")
+logger.info(f"Using models: Summarizer={GEMINI_MODEL_SUMMARIZER}, Insights={GEMINI_MODEL_INSIGHTS}, Metatopics={GEMINI_MODEL_METATOPICS}, Importance={GEMINI_MODEL_IMPORTANCE}")
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -411,7 +414,7 @@ async def classify_topics_to_metatopics(topics):
     Returns:
         The same list of topics with a 'metatopic' field added to each
     """
-    logger.info(f"Starting metatopic classification for {len(topics)} topics")
+    logger.info(f"Starting metatopic classification for {len(topics)} topics using model: {GEMINI_MODEL_METATOPICS}")
     
     if not topics:
         logger.warning("No topics to classify")
@@ -429,12 +432,12 @@ async def classify_topics_to_metatopics(topics):
         request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         
         prompt = INSTRUCTIONS.get("metatopic_classification", "").format(topics=topics_content)
-        logger.debug(f"Sending metatopic classification prompt to Gemini")
+        logger.debug(f"Sending metatopic classification prompt to Gemini model: {GEMINI_MODEL_METATOPICS}")
         
         response = await request_client.aio.models.generate_content(
-            model=GEMINI_MODEL_INSIGHTS, contents=prompt
+            model=GEMINI_MODEL_METATOPICS, contents=prompt
         )
-        logger.debug("Received response from Gemini API")
+        logger.debug("Received response from Gemini API for metatopic classification")
         
         # Extract JSON from response
         response_text = response.text
@@ -501,7 +504,7 @@ async def rate_topic_importance(topics):
     Returns:
         The same list of topics with an 'importance' field added to each
     """
-    logger.info(f"Starting importance rating for {len(topics)} topics")
+    logger.info(f"Starting importance rating for {len(topics)} topics using model: {GEMINI_MODEL_IMPORTANCE}")
     
     if not topics:
         logger.warning("No topics to rate")
@@ -519,12 +522,12 @@ async def rate_topic_importance(topics):
         request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
         
         prompt = INSTRUCTIONS.get("importance_rating", "").format(topics=topics_content)
-        logger.debug(f"Sending importance rating prompt to Gemini")
+        logger.debug(f"Sending importance rating prompt to Gemini model: {GEMINI_MODEL_IMPORTANCE}")
         
         response = await request_client.aio.models.generate_content(
-            model=GEMINI_MODEL_INSIGHTS, contents=prompt
+            model=GEMINI_MODEL_IMPORTANCE, contents=prompt
         )
-        logger.debug("Received response from Gemini API")
+        logger.debug("Received response from Gemini API for importance rating")
         
         # Extract JSON from response
         response_text = response.text
