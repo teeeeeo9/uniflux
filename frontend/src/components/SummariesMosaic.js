@@ -29,24 +29,25 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     const textLength = summary.length;
     
     // Create pseudorandom but deterministic variation
-    const pseudoRandom = ((index * 13) % 17) / 17;
+    // Use a more varied formula to create better distribution
+    const pseudoRandom = ((index * 17) % 23) / 23;
     
-    // Combine factors to create a size score
-    const sizeScore = (textLength / 200) + (importance / 10) * 2 + pseudoRandom * 2;
+    // Reduce the impact of text length and importance to create more small tiles
+    const sizeScore = (textLength / 300) + (importance / 10) * 1.5 + pseudoRandom * 1.5;
     
-    // Map to one of our allowed sizes
-    // Larger boxes - less frequent
-    if (sizeScore > 5) return { width: 3, height: 3 }; // 3w×3h - largest
-    if (sizeScore > 4.5) return { width: 4, height: 2 }; // 4w×2h
-    if (sizeScore > 4) return { width: 3, height: 2 }; // 3w×2h
+    // Distribute sizes with a stronger preference for smaller tiles
+    // Larger boxes - much less frequent
+    if (sizeScore > 5.5) return { width: 3, height: 3 }; // 3w×3h - largest (rare)
+    if (sizeScore > 4.8) return { width: 4, height: 2 }; // 4w×2h (rare)
+    if (sizeScore > 4.2) return { width: 3, height: 2 }; // 3w×2h (uncommon)
     
     // Smaller boxes - more frequent
-    if (sizeScore > 3) return { width: 3, height: 1 }; // 3w×1h
-    if (sizeScore > 2) return { width: 2, height: 1 }; // 2w×1h
-    if (sizeScore > 1.5) return { width: 1, height: 3 }; // 1w×3h
-    if (sizeScore > 1) return { width: 1, height: 2 }; // 1w×2h
+    if (sizeScore > 3.2) return { width: 3, height: 1 }; // 3w×1h 
+    if (sizeScore > 2.2) return { width: 2, height: 1 }; // 2w×1h (common)
+    if (sizeScore > 1.7) return { width: 1, height: 3 }; // 1w×3h
+    if (sizeScore > 1.2) return { width: 1, height: 2 }; // 1w×2h (common)
     
-    return { width: 1, height: 1 }; // 1w×1h - smallest
+    return { width: 1, height: 1 }; // 1w×1h - smallest (most common)
   };
 
   // Calculate layout with perfect packing
@@ -117,9 +118,35 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     // Place each tile and track positions
     const positionedTiles = [];
     
+    // Helper to count wide tiles in recent rows
+    const countRecentWideTiles = (currentRow, lookBackRows = 2) => {
+      let wideCount = 0;
+      for (const tile of positionedTiles) {
+        // Only consider tiles in the recent rows
+        if (currentRow - tile.row <= lookBackRows) {
+          if (tile.width >= 3) {
+            wideCount++;
+          }
+        }
+      }
+      return wideCount;
+    };
+    
     topics.forEach((topic, index) => {
       // Get initial ideal size
-      const { width, height } = getInitialTileSize(topic, index);
+      let { width, height } = getInitialTileSize(topic, index);
+      
+      // Reduce width for tiles that would be too wide if we have many wide tiles recently
+      // This helps create a more balanced layout
+      if (width >= 3) {
+        // Find where this tile would be placed
+        const { row } = findNextPosition(width, height);
+        
+        // If we already have multiple wide tiles in recent rows, make this one narrower
+        if (countRecentWideTiles(row) >= 2) {
+          width = Math.max(1, width - 1);
+        }
+      }
       
       // Find position
       const { row, col } = findNextPosition(width, height);
@@ -161,28 +188,8 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       for (let col = 0; col < grid.width; col++) {
         // If cell is empty, try to extend a neighboring tile
         if (grid.cells[row][col] === null) {
-          // Try extending a tile from the left
-          if (col > 0 && grid.cells[row][col - 1] !== null) {
-            const tileIndex = grid.cells[row][col - 1];
-            const tile = positionedTiles.find(t => t.index === tileIndex);
-            
-            // Check if we can extend this tile
-            let canExtend = true;
-            for (let r = tile.row; r < tile.row + tile.height; r++) {
-              if (r >= grid.height || grid.cells[r][col] !== null) {
-                canExtend = false;
-                break;
-              }
-            }
-            
-            // Extend if possible
-            if (canExtend) {
-              tile.width += 1;
-              occupyArea(tile.row, tile.col, tile.width, tile.height, tile.index);
-            }
-          }
-          // Or try extending a tile from above
-          else if (row > 0 && grid.cells[row - 1][col] !== null) {
+          // First try extending a tile from above (vertical expansion preferred)
+          if (row > 0 && grid.cells[row - 1][col] !== null) {
             const tileIndex = grid.cells[row - 1][col];
             const tile = positionedTiles.find(t => t.index === tileIndex);
             
@@ -199,6 +206,31 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
             if (canExtend) {
               tile.height += 1;
               occupyArea(tile.row, tile.col, tile.width, tile.height, tile.index);
+              continue; // Skip to next cell after successful extension
+            }
+          }
+          
+          // Then try extending a tile from the left, but only if it's not already too wide
+          if (col > 0 && grid.cells[row][col - 1] !== null) {
+            const tileIndex = grid.cells[row][col - 1];
+            const tile = positionedTiles.find(t => t.index === tileIndex);
+            
+            // Don't extend tiles that are already wide (width >= 3)
+            if (tile.width < 3) {
+              // Check if we can extend this tile
+              let canExtend = true;
+              for (let r = tile.row; r < tile.row + tile.height; r++) {
+                if (r >= grid.height || grid.cells[r][col] !== null) {
+                  canExtend = false;
+                  break;
+                }
+              }
+              
+              // Extend if possible
+              if (canExtend) {
+                tile.width += 1;
+                occupyArea(tile.row, tile.col, tile.width, tile.height, tile.index);
+              }
             }
           }
         }
@@ -258,7 +290,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
         className="mosaic-container" 
         style={{ 
           gridTemplateRows: `repeat(${packedLayout.maxRow}, minmax(70px, auto))`,
-          gridTemplateColumns: `repeat(5, 1fr)`
+          gridTemplateColumns: `repeat(5, 1fr)` // Default 5 columns
         }}
       >
         {packedLayout.tiles.map(({ topic, index, gridColumnStart, gridColumnEnd, gridRowStart, gridRowEnd, width, height }) => {
