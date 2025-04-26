@@ -535,7 +535,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
       <div 
         className="mosaic-container" 
         style={{ 
-          gridTemplateRows: `repeat(${packedLayout.maxRow}, minmax(70px, auto))`,
+          gridTemplateRows: `repeat(${packedLayout.maxRow}, minmax(98px, auto))`,
           gridTemplateColumns: `repeat(5, 1fr)` // Default 5 columns
         }}
       >
