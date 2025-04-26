@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './Settings.css';
 
 const Settings = ({ onFetchInsights }) => {
-  // State for different view modes
-  const [viewMode, setViewMode] = useState('categories'); // 'categories' or 'custom'
-  const [customSources, setCustomSources] = useState('');
+  // State for time period
   const [period, setPeriod] = useState('1d');
   
   // State for API data
@@ -17,6 +15,9 @@ const Settings = ({ onFetchInsights }) => {
   
   // State for category checkboxes
   const [selectedCategories, setSelectedCategories] = useState({});
+  
+  // State for custom sources
+  const [customSources, setCustomSources] = useState(['']);
 
   // Fetch sources from API on component mount
   useEffect(() => {
@@ -67,14 +68,6 @@ const Settings = ({ onFetchInsights }) => {
 
     fetchSources();
   }, []);
-
-  const handleViewModeChange = (e) => {
-    setViewMode(e.target.value);
-  };
-
-  const handleCustomSourcesChange = (e) => {
-    setCustomSources(e.target.value);
-  };
 
   const handlePeriodChange = (e) => {
     setPeriod(e.target.value);
@@ -141,29 +134,68 @@ const Settings = ({ onFetchInsights }) => {
     
     setSelectedCategories(newSelectedCategories);
   }, [selectedSources, categories]);
+  
+  // Handle custom source input change
+  const handleCustomSourceChange = (index, value) => {
+    const newCustomSources = [...customSources];
+    newCustomSources[index] = value;
+    setCustomSources(newCustomSources);
+  };
+  
+  // Handle key press in custom source input
+  const handleCustomSourceKeyPress = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      // If there's text in the current field, add a new empty field
+      if (customSources[index].trim() !== '') {
+        setCustomSources([...customSources, '']);
+      }
+    }
+  };
+  
+  // Remove a custom source
+  const removeCustomSource = (index) => {
+    const newCustomSources = customSources.filter((_, i) => i !== index);
+    if (newCustomSources.length === 0) {
+      newCustomSources.push('');
+    }
+    setCustomSources(newCustomSources);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    let sources = [];
-    if (viewMode === 'custom') {
-      // Parse custom sources (comma-separated)
-      sources = customSources
-        .split(',')
-        .map(source => source.trim())
-        .filter(source => source.length > 0);
-    } else {
-      sources = selectedSources;
-    }
+    // Combine selected sources from categories with valid custom sources
+    const validCustomSources = customSources
+      .map(source => source.trim())
+      .filter(source => source.length > 0);
     
-    console.log('Submitting analysis with settings:', { period, sources });
-    onFetchInsights({ period, sources });
+    const allSources = [...selectedSources, ...validCustomSources];
+    
+    console.log('Submitting analysis with settings:', { period, sources: allSources });
+    onFetchInsights({ period, sources: allSources });
   };
 
   return (
     <div className="settings-section">
       <div className="card">
-        <h2>News Settings</h2>
+        <div className="header-container">
+          <h2>News Settings</h2>
+          <div className="time-period-container">
+            <label htmlFor="period" className="time-period-label">Time Period:</label>
+            <select 
+              id="period" 
+              value={period} 
+              onChange={handlePeriodChange}
+              className="time-period-select"
+            >
+              <option value="1d">Last 24 hours</option>
+              <option value="2d">Last 2 days</option>
+              <option value="1w">Last week</option>
+            </select>
+          </div>
+        </div>
         {loading ? (
           <div className="loading-indicator">Loading sources...</div>
         ) : error ? (
@@ -173,101 +205,89 @@ const Settings = ({ onFetchInsights }) => {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <div className="form-control">
-                <label htmlFor="viewMode">Source Selection</label>
-                <select 
-                  id="viewMode" 
-                  value={viewMode} 
-                  onChange={handleViewModeChange}
-                >
-                  <option value="categories">Select from categories</option>
-                  <option value="custom">Enter custom sources</option>
-                </select>
-              </div>
-
-              <div className="form-control">
-                <label htmlFor="period">Time Period</label>
-                <select 
-                  id="period" 
-                  value={period} 
-                  onChange={handlePeriodChange}
-                >
-                  <option value="1d">Last 24 hours</option>
-                  <option value="2d">Last 2 days</option>
-                  <option value="1w">Last week</option>
-                </select>
-              </div>
-            </div>
-
-            {viewMode === 'custom' ? (
-              <div className="form-control">
-                <label htmlFor="customSources">
-                  Enter Telegram channels (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  id="customSources"
-                  value={customSources}
-                  onChange={handleCustomSourcesChange}
-                  placeholder="e.g., https://t.me/channel1, https://t.me/channel2"
-                />
-              </div>
-            ) : (
-              <>
-                <div className="source-categories-grid">
-                  {Object.keys(categories).length === 0 ? (
-                    <p className="no-sources">No sources available in the database.</p>
-                  ) : (
-                    Object.entries(categories).map(([category, sources]) => (
-                      <div key={category} className="source-category-block">
-                        <div className="category-header">
-                          <label className="category-checkbox-label">
+            <div className="source-categories-grid">
+              {Object.keys(categories).length === 0 ? (
+                <p className="no-sources">No sources available in the database.</p>
+              ) : (
+                Object.entries(categories).map(([category, sources]) => (
+                  <div key={category} className="source-category-block">
+                    <div className="category-header">
+                      <label className="category-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={isCategorySelected(category)}
+                          onChange={() => handleCategoryToggle(category)}
+                          className="category-checkbox"
+                          ref={el => {
+                            if (el) {
+                              el.indeterminate = isCategoryPartiallySelected(category);
+                            }
+                          }}
+                        />
+                        <h3>{category}</h3>
+                      </label>
+                    </div>
+                    <div className="source-list-container-grid">
+                      {sources.map(source => (
+                        <div key={source.id} className="source-item">
+                          <label className="checkbox-label">
                             <input
                               type="checkbox"
-                              checked={isCategorySelected(category)}
-                              onChange={() => handleCategoryToggle(category)}
-                              className="category-checkbox"
-                              ref={el => {
-                                if (el) {
-                                  el.indeterminate = isCategoryPartiallySelected(category);
-                                }
-                              }}
+                              checked={selectedSources.includes(source.url)}
+                              onChange={() => handleSourceToggle(source.url)}
                             />
-                            <h3>{category}</h3>
+                            <span className="source-name" title={source.url}>
+                              {source.name}
+                            </span>
                           </label>
                         </div>
-                        <div className="source-list-container-grid">
-                          {sources.map(source => (
-                            <div key={source.id} className="source-item">
-                              <label className="checkbox-label">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedSources.includes(source.url)}
-                                  onChange={() => handleSourceToggle(source.url)}
-                                />
-                                <span className="source-name" title={source.url}>
-                                  {source.name}
-                                </span>
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="selected-count">
-                  Selected sources: {selectedSources.length}
-                </div>
-              </>
-            )}
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
 
+              {/* Custom Sources section as a category block */}
+              <div className="source-category-block">
+                <div className="category-header">
+                  <h3>Custom Sources</h3>
+                </div>
+                <div className="source-list-container-grid">
+                  {customSources.map((source, index) => (
+                    <div key={index} className="source-item custom-source-item">
+                      <div className="custom-source-row">
+                        <input
+                          type="text"
+                          className="custom-source-input"
+                          value={source}
+                          onChange={(e) => handleCustomSourceChange(index, e.target.value)}
+                          onKeyPress={(e) => handleCustomSourceKeyPress(e, index)}
+                          placeholder="Enter source URL"
+                        />
+                        {customSources.length > 1 && source.trim() === '' && (
+                          <button 
+                            type="button" 
+                            className="remove-source-btn"
+                            onClick={() => removeCustomSource(index)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="selected-count">
+              Selected sources: {selectedSources.length}
+            </div>
+            
             <div className="form-actions">
               <button 
                 type="submit" 
                 className="btn btn-primary"
-                disabled={viewMode === 'categories' && selectedSources.length === 0}
+                disabled={selectedSources.length === 0 && customSources.every(source => source.trim() === '')}
               >
                 Generate Insights
               </button>
