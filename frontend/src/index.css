@@ -43,7 +43,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--background-color);
-  background-image: url('./assets/bg-pattern.svg');
+  background-image: url('./assets/bg.svg');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
