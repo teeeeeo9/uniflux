@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Settings from './components/Settings';
 import SummariesMosaic from './components/SummariesMosaic';
 import TopicDetails from './components/TopicDetails';
+import logo from './assets/image.png';
 import './App.css';
 
 function App() {
@@ -147,7 +148,10 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="container">
-          <h1>News Insights</h1>
+          <div className="header-content">
+            <img src={logo} alt="Uniflux Logo" className="app-logo" />
+            <h1>Uniflux</h1>
+          </div>
           <p>Aggregate, summarize, and gain insights from multiple news sources</p>
         </div>
       </header>

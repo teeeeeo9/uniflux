@@ -1,6 +1,6 @@
 {
-  "short_name": "News Insights",
-  "name": "News Insights - Aggregate and analyze news",
+  "short_name": "Uniflux",
+  "name": "Uniflux - Aggregate and analyze news",
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#2563eb",
