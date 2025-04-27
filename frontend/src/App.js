@@ -248,9 +248,6 @@ function App() {
           <Settings onFetchSummaries={fetchSummaries} />
         </div>
         
-        {/* Subscription Section */}
-        <Subscription />
-        
         {/* Loading and Error States */}
         {loading && (
           <div className="loading">
@@ -296,6 +293,13 @@ function App() {
               onGenerateInsights={showGenerateInsightsButton ? fetchInsights : undefined}
               ref={topicDetailsRef}
             />
+          </div>
+        )}
+        
+        {/* Show Subscription at the bottom when summaries or details are shown */}
+        {(!loading && !error && summaries && summaries.topics && summaries.topics.length > 0) && (
+          <div className="bottom-subscription-container">
+            <Subscription />
           </div>
         )}
       </main>

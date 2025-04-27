@@ -315,8 +315,9 @@
 .checkbox-label {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 10px;
   cursor: pointer;
+  padding: 2px 0;
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -330,7 +331,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-block;
-  max-width: calc(100% - 24px);
+  padding-left: 10px;
+  max-width: calc(100% - 34px);
 }
 
 .selected-count {

@@ -1,8 +1,13 @@
 .feedback-container {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 70px;
+  right: -100px;
   z-index: 1000;
+  transition: right 0.3s ease;
+}
+
+.feedback-container:hover {
+  right: 20px;
 }
 
 .feedback-button {
@@ -11,13 +16,28 @@
   background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   color: white;
   border: none;
-  border-radius: 50px;
-  padding: 12px 20px;
+  border-radius: 50px 0 0 50px;
+  padding: 12px 20px 12px 15px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
   transition: all 0.2s ease;
+  width: 130px;
+  justify-content: flex-start;
+}
+
+.feedback-button::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 30px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  border-radius: 50px 0 0 50px;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  z-index: -1;
 }
 
 .feedback-button:hover {

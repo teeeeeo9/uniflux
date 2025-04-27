@@ -1,6 +1,37 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import './TopicDetails.css';
 
+// Helper function to format message text
+const formatMessageText = (text) => {
+  if (!text) return '';
+  
+  // Replace consecutive newlines with a single one
+  let formatted = text.replace(/\n{3,}/g, '\n\n');
+  
+  // Replace special quote characters with standard quotes
+  formatted = formatted.replace(/[«»]/g, '"');
+  formatted = formatted.replace(/['']/g, "'");
+  formatted = formatted.replace(/[""]/g, '"');
+  
+  // Format links - find URLs and make them proper links
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  formatted = formatted.replace(urlRegex, (url) => {
+    // Remove trailing punctuation that might be captured
+    let cleanUrl = url;
+    if (cleanUrl.endsWith('.') || cleanUrl.endsWith(',') || cleanUrl.endsWith(':') || cleanUrl.endsWith(';') || cleanUrl.endsWith(')')) {
+      const lastChar = cleanUrl.slice(-1);
+      cleanUrl = cleanUrl.slice(0, -1);
+      return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer">${cleanUrl}</a>${lastChar}`;
+    }
+    return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer">${cleanUrl}</a>`;
+  });
+  
+  // Replace multiple spaces with a single space
+  formatted = formatted.replace(/[ ]{2,}/g, ' ');
+  
+  return formatted;
+};
+
 const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsights }, ref) => {
   const [activeTab, setActiveTab] = useState('messages');
   const [messageContents, setMessageContents] = useState({});
@@ -196,12 +227,15 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
                               </span>
                             )}
                           </div>
-                          <p className="message-text">
-                            {messageContent?.content || 
-                             (messageContent?.error ? 
-                              `Error: ${messageContent.error}` : 
-                              'Fetching message content...')}
-                          </p>
+                          <div className="message-text"
+                            dangerouslySetInnerHTML={{
+                              __html: messageContent?.content 
+                                ? formatMessageText(messageContent.content)
+                                : (messageContent?.error
+                                  ? `Error: ${messageContent.error}`
+                                  : 'Fetching message content...')
+                            }}
+                          />
                         </div>
                       );
                     })}
