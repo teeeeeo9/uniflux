@@ -354,9 +354,14 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
             
             // Create a new tile filling the gap
             if (cloneSource) {
+              // Generate a unique index for gap tiles by adding an offset
+              // This ensures gap tiles have unique indexes different from regular tiles
+              const gapTileIndex = `gap_${row}_${col}`;
+              
               const gapTile = {
                 topic: cloneSource.topic,
-                index: cloneSource.index,
+                index: gapTileIndex, // Use the unique gap tile index
+                originalIndex: cloneSource.index, // Store original index for data reference
                 row: row,
                 col: col,
                 width: maxWidth,
@@ -369,7 +374,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
               // Mark the gap area as occupied
               for (let r = row; r < row + maxHeight; r++) {
                 for (let c = col; c < col + maxWidth; c++) {
-                  grid.cells[r][c] = gapTile.index;
+                  grid.cells[r][c] = gapTileIndex;
                 }
               }
             }
@@ -455,10 +460,15 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
           const importanceClass = getImportanceClass(topic.importance || 5);
           const tileClassName = getTileClassName(width, height);
           
+          // For gap tiles, we need to determine the actual index to use for selection
+          const actualIndex = typeof index === 'string' && index.startsWith('gap_') 
+            ? topic.originalIndex || parseInt(index.split('_')[2], 10) || 0
+            : index;
+          
           return (
             <div 
               key={index}
-              className={`mosaic-tile ${tileClassName} ${importanceClass} ${selectedTopicId === index ? 'selected' : ''}`}
+              className={`mosaic-tile ${tileClassName} ${importanceClass} ${selectedTopicId === actualIndex ? 'selected' : ''}`}
               style={{ 
                 backgroundColor: baseColor,
                 gridColumnStart,
@@ -466,7 +476,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                 gridRowStart,
                 gridRowEnd
               }}
-              onClick={() => onSelectTopic(index)}
+              onClick={() => onSelectTopic(actualIndex)}
             >
               <div className="tile-content">
                 <div className="tile-header">
@@ -514,7 +524,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                         <div className="tooltip-actions">
                           <button 
                             className="tooltip-action-btn go-to-messages"
-                            onClick={(e) => scrollToMessages(e, index)}
+                            onClick={(e) => scrollToMessages(e, actualIndex)}
                           >
                             Go to messages
                           </button>
