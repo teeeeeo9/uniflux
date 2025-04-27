@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Settings from './components/Settings';
 import SummariesMosaic from './components/SummariesMosaic';
 import TopicDetails from './components/TopicDetails';
+import Feedback from './components/Feedback';
+import Subscription from './components/Subscription';
 import logo from './assets/image.png';
 import './App.css';
 
@@ -12,7 +14,24 @@ function App() {
   const [error, setError] = useState(null);
   const [selectedTopicIndex, setSelectedTopicIndex] = useState(null);
   const [loadingStep, setLoadingStep] = useState(null);
+  const [showFeedbackTooltip, setShowFeedbackTooltip] = useState(false);
   const topicDetailsRef = useRef(null); // Reference to the TopicDetails component
+
+  // Show feedback tooltip after user has been on the page for 60 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowFeedbackTooltip(true);
+      
+      // Hide tooltip after 5 seconds
+      const hideTimer = setTimeout(() => {
+        setShowFeedbackTooltip(false);
+      }, 5000);
+      
+      return () => clearTimeout(hideTimer);
+    }, 60000);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchSummaries = async (settings) => {
     setLoading(true);
@@ -229,6 +248,9 @@ function App() {
           <Settings onFetchSummaries={fetchSummaries} />
         </div>
         
+        {/* Subscription Section */}
+        <Subscription />
+        
         {/* Loading and Error States */}
         {loading && (
           <div className="loading">
@@ -277,6 +299,14 @@ function App() {
           </div>
         )}
       </main>
+      
+      {/* Feedback Component */}
+      <Feedback />
+      {showFeedbackTooltip && (
+        <div className="feedback-tooltip">
+          <p>We'd love to hear your thoughts! Click here to provide feedback.</p>
+        </div>
+      )}
     </div>
   );
 }

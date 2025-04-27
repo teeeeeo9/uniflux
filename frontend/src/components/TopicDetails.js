@@ -175,11 +175,6 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
         {activeTab === 'messages' && (
           <div className="messages-section">
             <h3 className="content-subtitle">Original Messages</h3>
-            {topic.summary && (
-              <div className="topic-summary-block">
-                <p className="topic-summary-text">{topic.summary}</p>
-              </div>
-            )}
             {topic.message_ids && topic.message_ids.length > 0 ? (
               <>
                 {loadingMessages ? (
@@ -270,7 +265,17 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
                 )}
               </div>
             ) : (
-              <p className="no-content">No insights available for this topic yet. Please use the "Discover actionable insights" button in the Original Messages tab.</p>
+              <p className="no-content">No insights available for this topic yet.</p>
+            )}
+            
+            {/* Duplicate the "Discover actionable insights" button on the Insights tab */}
+            {onGenerateInsights && !hasInsights && (
+              <div className="insight-action-container">
+                <button className="generate-insights-button" onClick={handleGenerateInsights}>
+                  <span className="button-icon">✨</span>
+                  Discover actionable insights
+                </button>
+              </div>
             )}
           </div>
         )}

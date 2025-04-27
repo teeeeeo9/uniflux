@@ -235,29 +235,37 @@
   width: 100%;
 }
 
+/* Adjust checkbox styling to make source type and specific source checkboxes consistent */
+.checkbox-label input[type="checkbox"],
 .category-checkbox {
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 0.25rem;
-  border: 2px solid var(--border-color);
   appearance: none;
-  background-color: white;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  margin-right: 8px;
   position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
   cursor: pointer;
+  background-color: white;
 }
 
+.checkbox-label input[type="checkbox"]:checked,
 .category-checkbox:checked {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
+.checkbox-label input[type="checkbox"]:checked::after,
 .category-checkbox:checked::after {
   content: '';
   position: absolute;
-  left: 0.35rem;
-  top: 0.15rem;
-  width: 0.35rem;
-  height: 0.65rem;
+  top: 2px;
+  left: 5px;
+  width: 6px;
+  height: 10px;
   border: solid white;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
@@ -266,16 +274,30 @@
 .category-checkbox:indeterminate {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
+  opacity: 0.6;
 }
 
 .category-checkbox:indeterminate::after {
   content: '';
   position: absolute;
-  left: 0.25rem;
-  top: 0.5rem;
-  width: 0.65rem;
-  height: 0.15rem;
+  top: 7px;
+  left: 3px;
+  width: 10px;
+  height: 2px;
   background-color: white;
+}
+
+/* Hover and focus states */
+.checkbox-label input[type="checkbox"]:hover,
+.category-checkbox:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.1);
+}
+
+.checkbox-label input[type="checkbox"]:focus,
+.category-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 .source-list-container-grid {
@@ -438,38 +460,98 @@
 /* Email subscription form */
 .email-subscription-form {
   display: flex;
-  margin-top: 0.5rem;
-  width: 100%;
+  margin-top: 12px;
+  gap: 8px;
 }
 
 .email-input {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.25rem 0 0 0.25rem;
-  font-size: 0.875rem;
-  outline: none;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .email-input:focus {
+  outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.email-input.input-error {
+  border-color: #ef4444;
+  background-color: rgba(254, 226, 226, 0.3);
 }
 
 .subscribe-button {
-  background-color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
   color: white;
   border: none;
-  border-radius: 0 0.25rem 0.25rem 0;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .subscribe-button:hover {
-  background-color: var(--color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.subscription-message {
+  padding: 16px;
+}
+
+.subscription-message p {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.subscription-success {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.subscription-success .success-icon {
+  display: block;
+  font-size: 32px;
+  color: #4caf50;
+  margin: 0 auto 10px;
+}
+
+.subscription-success p {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.subscription-success p:last-child {
+  font-weight: normal;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 13px;
+  margin: 6px 0 0 0;
+}
+
+/* Ensure proper styling on mobile */
+@media (max-width: 600px) {
+  .email-subscription-form {
+    flex-direction: column;
+  }
+  
+  .subscribe-button {
+    width: 100%;
+    margin-top: 8px;
+  }
 }
 
 .custom-sources-block {

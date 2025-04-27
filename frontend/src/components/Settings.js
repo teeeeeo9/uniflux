@@ -18,6 +18,11 @@ const Settings = ({ onFetchSummaries }) => {
   
   // State for custom sources
   const [customSources, setCustomSources] = useState(['']);
+  
+  // State for subscription
+  const [email, setEmail] = useState('');
+  const [subscriptionSubmitted, setSubscriptionSubmitted] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState('');
 
   // Fetch sources from API on component mount
   useEffect(() => {
@@ -163,6 +168,58 @@ const Settings = ({ onFetchSummaries }) => {
     setCustomSources(newCustomSources);
   };
 
+  // Handle email subscription
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    if (subscriptionError) setSubscriptionError('');
+  };
+
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const handleSubscribe = () => {
+    // Reset previous error and success states
+    setSubscriptionError('');
+    
+    // Validate email
+    if (!email.trim()) {
+      setSubscriptionError('Please enter an email address');
+      return;
+    }
+    
+    if (!validateEmail(email)) {
+      setSubscriptionError('Please enter a valid email address');
+      return;
+    }
+    
+    try {
+      // Store email in localStorage for demonstration
+      const subscribers = JSON.parse(localStorage.getItem('subscribers') || '[]');
+      subscribers.push({
+        email: email,
+        timestamp: new Date().toISOString(),
+        source: 'custom-sources'
+      });
+      localStorage.setItem('subscribers', JSON.stringify(subscribers));
+      
+      console.log(`Email ${email} subscribed for custom sources notifications`);
+      
+      // Show success message
+      setSubscriptionSubmitted(true);
+      setEmail('');
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => {
+        setSubscriptionSubmitted(false);
+      }, 3000);
+    } catch (err) {
+      console.error('Error saving subscription:', err);
+      setSubscriptionError('Failed to subscribe. Please try again.');
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     
@@ -253,32 +310,37 @@ const Settings = ({ onFetchSummaries }) => {
               </div>
               <div className="source-list-container-grid">
                 <div className="custom-source-item subscription-message">
-                  <p>Enter your email to get notified when we add support for custom news sources.</p>
-                  <div className="email-subscription-form">
-                    <input 
-                      type="email" 
-                      className="email-input" 
-                      placeholder="Your email address"
-                      aria-label="Email address for subscription"
-                    />
-                    <button 
-                      className="subscribe-button" 
-                      type="button"
-                      onClick={() => {
-                        const emailInput = document.querySelector('.email-input');
-                        const email = emailInput?.value;
-                        if (email && email.includes('@')) {
-                          // Simple email validation
-                          alert(`Thank you for subscribing with ${email}! We'll notify you when custom sources are available.`);
-                          if (emailInput) emailInput.value = '';
-                        } else {
-                          alert('Please enter a valid email address.');
-                        }
-                      }}
-                    >
-                      Subscribe
-                    </button>
-                  </div>
+                  {subscriptionSubmitted ? (
+                    <div className="subscription-success">
+                      <span className="success-icon">✓</span>
+                      <p>Thank you for subscribing!</p>
+                      <p>We'll notify you when custom sources are available.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p>Enter your email to get notified when we add support for custom news sources.</p>
+                      <div className="email-subscription-form">
+                        <input 
+                          type="email" 
+                          className={`email-input ${subscriptionError ? 'input-error' : ''}`}
+                          placeholder="Your email address"
+                          aria-label="Email address for subscription"
+                          value={email}
+                          onChange={handleEmailChange}
+                        />
+                        <button 
+                          className="subscribe-button" 
+                          type="button"
+                          onClick={handleSubscribe}
+                        >
+                          Subscribe
+                        </button>
+                      </div>
+                      {subscriptionError && (
+                        <p className="error-message">{subscriptionError}</p>
+                      )}
+                    </>
+                  )}
                 </div>
                 {/* Custom source inputs remain hidden */}
               </div>

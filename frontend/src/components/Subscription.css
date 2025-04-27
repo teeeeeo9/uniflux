@@ -1,0 +1,111 @@
+.subscription-container {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.9));
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.3s;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.subscription-container:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.subscription-header {
+  margin-bottom: 16px;
+}
+
+.subscription-header h3 {
+  font-size: 18px;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+}
+
+.subscription-header p {
+  font-size: 14px;
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.subscription-form {
+  display: flex;
+  gap: 8px;
+}
+
+.subscription-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.subscription-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+}
+
+.subscription-form input.input-error {
+  border-color: #ef4444;
+}
+
+.subscription-form .subscribe-button {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.subscription-form .subscribe-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 13px;
+  margin: 8px 0 0 0;
+}
+
+.subscription-success {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.subscription-success .success-icon {
+  font-size: 32px;
+  color: #4caf50;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.subscription-success p {
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.subscription-success .success-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: normal;
+}
+
+@media (max-width: 600px) {
+  .subscription-form {
+    flex-direction: column;
+  }
+  
+  .subscription-form .subscribe-button {
+    width: 100%;
+  }
+} 
