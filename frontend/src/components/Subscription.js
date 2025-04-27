@@ -5,6 +5,7 @@ const Subscription = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -26,18 +27,27 @@ const Subscription = () => {
       return;
     }
     
+    setIsSubmitting(true);
+    
     try {
-      // This is where you would typically make an API call to save the email
-      // For this example, we'll just log the email and simulate success
-      console.log('Subscribing email:', email);
-      
-      // Store email in localStorage for demonstration
-      const subscribers = JSON.parse(localStorage.getItem('subscribers') || '[]');
-      subscribers.push({
-        email: email,
-        timestamp: new Date().toISOString()
+      // Send subscription to backend
+      const response = await fetch('/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          source: 'main-subscription'
+        })
       });
-      localStorage.setItem('subscribers', JSON.stringify(subscribers));
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to subscribe');
+      }
       
       // Show success message
       setSubscribed(true);
@@ -51,7 +61,9 @@ const Subscription = () => {
       }, 3000);
     } catch (err) {
       console.error('Subscription error:', err);
-      setError('Failed to subscribe. Please try again later.');
+      setError(err.message || 'Failed to subscribe. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -77,13 +89,15 @@ const Subscription = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Your email address"
               className={error ? 'input-error' : ''}
+              disabled={isSubmitting}
             />
             
             <button 
-              className="subscribe-button"
+              className={`subscribe-button ${isSubmitting ? 'submitting' : ''}`}
               onClick={handleSubscribe}
+              disabled={isSubmitting}
             >
-              Subscribe
+              {isSubmitting ? 'Subscribing...' : 'Subscribe'}
             </button>
           </div>
           

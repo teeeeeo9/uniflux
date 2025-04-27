@@ -179,7 +179,7 @@ const Settings = ({ onFetchSummaries }) => {
     return re.test(email);
   };
 
-  const handleSubscribe = () => {
+  const handleSubscribe = async () => {
     // Reset previous error and success states
     setSubscriptionError('');
     
@@ -195,14 +195,24 @@ const Settings = ({ onFetchSummaries }) => {
     }
     
     try {
-      // Store email in localStorage for demonstration
-      const subscribers = JSON.parse(localStorage.getItem('subscribers') || '[]');
-      subscribers.push({
-        email: email,
-        timestamp: new Date().toISOString(),
-        source: 'custom-sources'
+      // Send subscription to backend
+      const response = await fetch('/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          source: 'custom-sources'
+        })
       });
-      localStorage.setItem('subscribers', JSON.stringify(subscribers));
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to subscribe');
+      }
       
       console.log(`Email ${email} subscribed for custom sources notifications`);
       
@@ -216,7 +226,7 @@ const Settings = ({ onFetchSummaries }) => {
       }, 3000);
     } catch (err) {
       console.error('Error saving subscription:', err);
-      setSubscriptionError('Failed to subscribe. Please try again.');
+      setSubscriptionError(err.message || 'Failed to subscribe. Please try again.');
     }
   };
 

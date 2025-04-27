@@ -106,6 +106,13 @@
 .form-group textarea:focus {
   border-color: var(--color-primary);
   outline: none;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.form-group input.input-error,
+.form-group textarea.input-error {
+  border-color: #ef4444;
+  background-color: rgba(254, 226, 226, 0.1);
 }
 
 .radio-group {
@@ -143,6 +150,42 @@
 .submit-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.submit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.submit-button.submitting {
+  position: relative;
+  padding-right: 40px;
+}
+
+.submit-button.submitting::after {
+  content: '';
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 14px;
+  margin-bottom: 15px;
+  padding: 8px 12px;
+  background-color: rgba(254, 226, 226, 0.3);
+  border-radius: 6px;
+  border-left: 3px solid #ef4444;
 }
 
 .success-message {

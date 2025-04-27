@@ -70,6 +70,38 @@
   box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
 }
 
+.subscription-form .subscribe-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.subscription-form .subscribe-button.submitting {
+  position: relative;
+  padding-right: 36px;
+}
+
+.subscription-form .subscribe-button.submitting::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
 .error-message {
   color: #ef4444;
   font-size: 13px;

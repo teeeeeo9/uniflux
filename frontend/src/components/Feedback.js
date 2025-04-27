@@ -9,9 +9,12 @@ const Feedback = () => {
     type: 'feedback'
   });
   const [showSuccess, setShowSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleOpen = () => {
     setIsOpen(true);
+    setError('');
   };
 
   const handleClose = () => {
@@ -24,6 +27,7 @@ const Feedback = () => {
         type: 'feedback'
       });
       setShowSuccess(false);
+      setError('');
     }, 300);
   };
 
@@ -33,21 +37,46 @@ const Feedback = () => {
       ...prev,
       [name]: value
     }));
+    
+    // Clear error when user is typing
+    if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
     
-    // Here you would send data to server
-    console.log('Submitting feedback:', formData);
-    
-    // For now we just show a success message
-    setShowSuccess(true);
-    
-    // Reset form after 3 seconds
-    setTimeout(() => {
-      handleClose();
-    }, 3000);
+    try {
+      // Send data to backend API
+      const response = await fetch('/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit feedback');
+      }
+      
+      // Show success message
+      setShowSuccess(true);
+      
+      // Reset form after 3 seconds
+      setTimeout(() => {
+        handleClose();
+      }, 3000);
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -123,6 +152,7 @@ const Feedback = () => {
                       value={formData.email}
                       onChange={handleChange}
                       required
+                      className={error && !formData.email ? 'input-error' : ''}
                     />
                   </div>
                   
@@ -136,11 +166,22 @@ const Feedback = () => {
                       onChange={handleChange}
                       required
                       rows={5}
+                      className={error && !formData.message ? 'input-error' : ''}
                     />
                   </div>
                   
-                  <button type="submit" className="submit-button">
-                    Submit
+                  {error && (
+                    <div className="error-message">
+                      {error}
+                    </div>
+                  )}
+                  
+                  <button 
+                    type="submit" 
+                    className={`submit-button ${isSubmitting ? 'submitting' : ''}`}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit'}
                   </button>
                 </form>
               </>

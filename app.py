@@ -18,6 +18,7 @@ from config import DATABASE, LOG_FILE
 from data_summarizer import process_and_aggregate_news, generate_insights, main as summarizer_main
 import threading
 from functools import wraps
+import time
 
 
 load_dotenv()
@@ -520,6 +521,260 @@ async def get_insights_legacy():
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
         return jsonify({"error": str(e)}), 500
+
+@app.route('/feedback', methods=['POST'])
+async def submit_feedback():
+    """
+    API endpoint to submit user feedback.
+    
+    Request Format (JSON):
+    {
+        "email": "user@example.com",
+        "message": "This is feedback from the user",
+        "type": "feedback" | "question" | "bug"
+    }
+    
+    Response Format (JSON):
+    {
+        "success": true,
+        "message": "Feedback submitted successfully"
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /feedback - IP: {user_ip}")
+    
+    try:
+        # Get JSON data from request body
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or not all(key in data for key in ['email', 'message', 'type']):
+            return jsonify({
+                "success": False,
+                "error": "Missing required fields: email, message, type"
+            }), 400
+            
+        # Validate email format
+        email = data['email']
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return jsonify({
+                "success": False,
+                "error": "Invalid email format"
+            }), 400
+            
+        # Validate feedback type
+        feedback_type = data['type']
+        if feedback_type not in ['feedback', 'question', 'bug']:
+            return jsonify({
+                "success": False,
+                "error": "Invalid feedback type. Must be one of: feedback, question, bug"
+            }), 400
+            
+        # Store feedback in database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO feedback (email, message, type) VALUES (?, ?, ?)",
+                (data['email'], data['message'], data['type'])
+            )
+            conn.commit()
+            
+        logger.info(f"RESPONSE [{request_id}] - Feedback submitted successfully from {email}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Feedback submitted successfully"
+        }), 201
+    
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to submit feedback: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        return jsonify({
+            "success": False,
+            "error": f"Failed to submit feedback: {str(e)}"
+        }), 500
+
+@app.route('/subscribe', methods=['POST'])
+async def subscribe():
+    """
+    API endpoint to subscribe a user via email.
+    
+    Request Format (JSON):
+    {
+        "email": "user@example.com",
+        "source": "main" | "custom-sources" | "newsletter" (optional)
+    }
+    
+    Response Format (JSON):
+    {
+        "success": true,
+        "message": "Subscription successful"
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /subscribe - IP: {user_ip}")
+    
+    try:
+        # Get JSON data from request body
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or 'email' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Missing required field: email"
+            }), 400
+            
+        # Validate email format
+        email = data['email']
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return jsonify({
+                "success": False,
+                "error": "Invalid email format"
+            }), 400
+            
+        # Get source (optional)
+        source = data.get('source', 'main')
+        
+        # Store subscription in database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "INSERT INTO subscribers (email, source) VALUES (?, ?)",
+                    (email, source)
+                )
+                conn.commit()
+                is_new = True
+            except sqlite3.IntegrityError:
+                # Email already exists, update the source instead
+                cursor.execute(
+                    "UPDATE subscribers SET source = ?, created_at = CURRENT_TIMESTAMP WHERE email = ?",
+                    (source, email)
+                )
+                conn.commit()
+                is_new = False
+            
+        message = "Subscription successful" if is_new else "Subscription updated"
+        logger.info(f"RESPONSE [{request_id}] - {message} for {email}")
+        
+        return jsonify({
+            "success": True,
+            "message": message
+        }), 201
+    
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to process subscription: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        return jsonify({
+            "success": False,
+            "error": f"Failed to process subscription: {str(e)}"
+        }), 500
+
+@app.route('/subscribers', methods=['GET'])
+async def get_subscribers():
+    """
+    API endpoint to get all subscribers (admin only).
+    Requires an admin token for authentication.
+    
+    Query Parameters:
+    - token: Admin token for authentication
+    - source: Filter by subscription source (optional)
+    
+    Response Format (JSON):
+    {
+        "subscribers": [
+            {
+                "email": "user@example.com",
+                "source": "main",
+                "created_at": "2023-05-20T12:34:56"
+            },
+            ...
+        ],
+        "count": 1
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Check for admin token
+    admin_token = request.args.get('token')
+    # In production, use a secure token from environment variables
+    if admin_token != os.getenv('ADMIN_TOKEN', 'admin-secret-token'):
+        return jsonify({
+            "success": False,
+            "error": "Unauthorized access"
+        }), 401
+    
+    try:
+        # Get source filter (optional)
+        source_filter = request.args.get('source')
+        
+        # Retrieve subscribers from database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            if source_filter:
+                cursor.execute(
+                    "SELECT email, source, created_at FROM subscribers WHERE source = ? ORDER BY created_at DESC",
+                    (source_filter,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT email, source, created_at FROM subscribers ORDER BY created_at DESC"
+                )
+                
+            subscribers = [
+                {
+                    "email": row['email'],
+                    "source": row['source'],
+                    "created_at": row['created_at']
+                }
+                for row in cursor.fetchall()
+            ]
+            
+        return jsonify({
+            "subscribers": subscribers,
+            "count": len(subscribers)
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Failed to retrieve subscribers: {str(e)}"
+        }), 500
 
 if __name__ == '__main__':
     logger.info("Application starting up")
