@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from config import DATABASE, LOG_FILE
 from instruction_templates import INSTRUCTIONS
 from typing import Dict, Any
+import litellm
 # from litellm import LLMExtractionStrategy, LLMConfig, CrawlerRunConfig, CacheMode, BrowserConfig
 # from litellm.crawlers import AsyncWebCrawler
 
@@ -49,8 +50,14 @@ GEMINI_MODEL_INSIGHTS = os.getenv('GEMINI_MODEL_INSIGHTS', 'gemini-1.5-pro')  # 
 GEMINI_MODEL_METATOPICS = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')  # Default to gemini-1.5-flash if not specified
 GEMINI_MODEL_IMPORTANCE = os.getenv('GEMINI_MODEL_IMPORTANCE', 'gemini-1.5-flash')  # Default to gemini-1.5-flash if not specified
 
+SONAR_MODEL_INSIGHTS = os.getenv('SONAR_MODEL_INSIGHTS', 'perplexity/sonar-reasoning-pro')  # Default to sonar-reasoning-pro if not specified
+# Ensure we use the right environment variable for Perplexity API
+PERPLEXITYAI_API_KEY = os.getenv('PERPLEXITYAI_API_KEY')
+
 logger.info("Gemini API configured")
 logger.info(f"Using models: Summarizer={GEMINI_MODEL_SUMMARIZER}, Insights={GEMINI_MODEL_INSIGHTS}, Metatopics={GEMINI_MODEL_METATOPICS}, Importance={GEMINI_MODEL_IMPORTANCE}")
+logger.info(f"Sonar model available: {SONAR_MODEL_INSIGHTS}")
+logger.info(f"Perplexity API Key available: {PERPLEXITYAI_API_KEY is not None}")
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -346,17 +353,19 @@ async def process_and_aggregate_news(period, sources=None):
         logger.error(traceback.format_exc())
         return []
 
-async def generate_insights(summary_data):
+async def generate_insights(summary_data, use_sonar=True):
     """
     Generate actionable financial insights based on summarized news data
     
     Args:
         summary_data: List of summarized topics with details
+        use_sonar: Boolean flag to use Sonar instead of Gemini (default: True)
         
     Returns:
         List of topics with added insights
     """
-    logger.info(f"[INSIGHTS_START] Generating insights for {len(summary_data)} topics")
+    model_type = "Sonar" if use_sonar else "Gemini"
+    logger.info(f"[INSIGHTS_START] Generating insights for {len(summary_data)} topics using {model_type}")
     
     # Ensure we have a valid event loop at the start
     try:
@@ -376,7 +385,7 @@ async def generate_insights(summary_data):
     for i, topic in enumerate(summary_data):
         try:
             topic_name = topic.get('topic', 'Unknown')
-            logger.info(f"[INSIGHTS_TOPIC_{i+1}] Generating insights for topic: {topic_name}")
+            logger.info(f"[INSIGHTS_TOPIC_{i+1}] Generating insights for topic: {topic_name} using {model_type}")
             
             # Format the summary for the prompt
             topic_summary = f"Topic: {topic_name}\n"
@@ -386,23 +395,53 @@ async def generate_insights(summary_data):
             prompt = insights_prompt_template.format(summary=topic_summary)
             logger.debug(f"[INSIGHTS_PROMPT_{i+1}] Created prompt with length: {len(prompt)}")
             
-            # Create a fresh client for this request to avoid connection issues
-            try:
-                request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-                logger.debug(f"[INSIGHTS_CLIENT_{i+1}] Created fresh Gemini client")
-            except Exception as client_error:
-                logger.error(f"[INSIGHTS_CLIENT_ERROR_{i+1}] Failed to create Gemini client: {client_error}")
-                raise
+            response_text = ""
+            if use_sonar:
+                # Use Sonar with litellm
+                try:
+                    logger.debug(f"[INSIGHTS_SONAR_{i+1}] Creating Sonar client with litellm")
+                    
+                    # Prepare messages format for Sonar
+                    messages = [{"role": "user", "content": prompt}]
+                    
+                    logger.debug(f"[INSIGHTS_API_CALL_{i+1}] Calling Sonar API with model: {SONAR_MODEL_INSIGHTS}")
+                    response = await litellm.acompletion(
+                        model=SONAR_MODEL_INSIGHTS,
+                        messages=messages
+                    )
+                    
+                    logger.debug(f"[INSIGHTS_API_RESPONSE_{i+1}] Received response from Sonar API")
+                    response_text = response.choices[0].message.content
+                except Exception as sonar_error:
+                    logger.error(f"[INSIGHTS_SONAR_ERROR_{i+1}] Failed to use Sonar API: {sonar_error}")
+                    logger.error(traceback.format_exc())
+                    # Fall back to Gemini if Sonar fails
+                    logger.warning(f"[INSIGHTS_FALLBACK_{i+1}] Falling back to Gemini due to Sonar error")
+                    use_sonar = False
             
-            # Use Gemini to generate insights with the fresh client
-            logger.debug(f"[INSIGHTS_API_CALL_{i+1}] Calling Gemini API with model: {GEMINI_MODEL_INSIGHTS}")
-            response = await request_client.aio.models.generate_content(
-                model=GEMINI_MODEL_INSIGHTS, contents=prompt
-            )
-            logger.debug(f"[INSIGHTS_API_RESPONSE_{i+1}] Received response from Gemini API")
+            if not use_sonar:
+                # Use Gemini as before
+                try:
+                    request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+                    logger.debug(f"[INSIGHTS_CLIENT_{i+1}] Created fresh Gemini client")
+                
+                    # Use Gemini to generate insights with the fresh client
+                    logger.debug(f"[INSIGHTS_API_CALL_{i+1}] Calling Gemini API with model: {GEMINI_MODEL_INSIGHTS}")
+                    response = await request_client.aio.models.generate_content(
+                        model=GEMINI_MODEL_INSIGHTS, contents=prompt
+                    )
+                    logger.debug(f"[INSIGHTS_API_RESPONSE_{i+1}] Received response from Gemini API")
+                    
+                    # Extract text from response
+                    response_text = response.text
+                except Exception as client_error:
+                    logger.error(f"[INSIGHTS_CLIENT_ERROR_{i+1}] Failed to use Gemini API: {client_error}")
+                    logger.error(traceback.format_exc())
+                    # Add the topic without insights
+                    logger.debug(f"[INSIGHTS_FALLBACK_{i+1}] Adding topic without insights due to API error")
+                    enhanced_summaries.append(topic)
+                    continue
             
-            # Extract JSON from response
-            response_text = response.text
             logger.debug(f"[INSIGHTS_PARSE_{i+1}] Response text length: {len(response_text)}")
             
             # Find JSON content (may be wrapped in markdown code blocks)
@@ -426,6 +465,10 @@ async def generate_insights(summary_data):
                 insights = json.loads(json_str)
                 logger.info(f"[INSIGHTS_SUCCESS_{i+1}] Successfully parsed insights for topic: {topic_name}")
                 
+                # Log the formatted JSON insights
+                formatted_insights = json.dumps(insights, indent=2)
+                logger.info(f"[INSIGHTS_JSON_{i+1}] Generated insights:\n{formatted_insights}")
+                
                 # Add insights to the topic
                 enhanced_topic = topic.copy()
                 enhanced_topic["insights"] = insights
@@ -439,7 +482,7 @@ async def generate_insights(summary_data):
                 enhanced_summaries.append(enhanced_topic)
                 
             except json.JSONDecodeError as e:
-                logger.error(f"[INSIGHTS_ERROR_{i+1}] Failed to parse Gemini response as JSON: {e}")
+                logger.error(f"[INSIGHTS_ERROR_{i+1}] Failed to parse response as JSON: {e}")
                 logger.error(f"[INSIGHTS_ERROR_{i+1}] Raw response: {response_text}")
                 # Add the topic without insights
                 logger.debug(f"[INSIGHTS_FALLBACK_{i+1}] Adding topic without insights due to JSON parsing error")
@@ -452,7 +495,7 @@ async def generate_insights(summary_data):
             logger.debug(f"[INSIGHTS_FALLBACK_{i+1}] Adding topic without insights due to general error")
             enhanced_summaries.append(topic)
     
-    logger.info(f"[INSIGHTS_COMPLETE] Completed generating insights for {len(summary_data)} topics")
+    logger.info(f"[INSIGHTS_COMPLETE] Completed generating insights for {len(summary_data)} topics using {model_type}")
     return enhanced_summaries
 
 async def classify_topics_to_metatopics(topics):
@@ -694,9 +737,9 @@ async def rate_topic_importance(topics):
         logger.info("[IMPORTANCE_FALLBACK] Applied default importance rating of 5 to all topics due to exception")
         return topics
 
-async def main(period='1d', sources=None, include_insights=False):
+async def main(period='1d', sources=None, include_insights=False, use_sonar_for_insights=True):
     """Main function to run the summarizer"""
-    logger.info(f"[MAIN_START] Starting main function with period={period}, sources={sources}, include_insights={include_insights}")
+    logger.info(f"[MAIN_START] Starting main function with period={period}, sources={sources}, include_insights={include_insights}, use_sonar={use_sonar_for_insights}")
     
     try:
         # Step 1: Get the initial topic summaries
@@ -728,8 +771,8 @@ async def main(period='1d', sources=None, include_insights=False):
              
             # Step 4: Generate insights if requested
             if include_insights:
-                logger.info("[MAIN_STEP4] Starting insights generation")
-                result = await generate_insights(result)
+                logger.info(f"[MAIN_STEP4] Starting insights generation using {'Sonar' if use_sonar_for_insights else 'Gemini'}")
+                result = await generate_insights(result, use_sonar=use_sonar_for_insights)
                 logger.info(f"[MAIN_STEP4_COMPLETE] Added insights to {len(result)} topics")
                 
                 # Log insight completeness
@@ -750,16 +793,23 @@ if __name__ == "__main__":
     logger.info("[SCRIPT_START] Starting data_summarizer.py")
     
     try:
-        logger.debug("[SCRIPT_EXEC] Calling main() function with default parameters")
-        # import argparse
+        logger.debug("[SCRIPT_EXEC] Parsing command line arguments")
+        import argparse
         
-        # parser = argparse.ArgumentParser(description='Summarize news from various sources')
-        # parser.add_argument('--period', type=str, default='1d', help='Time period (e.g., 1d, 2d, 1w)')
-        # parser.add_argument('--sources', type=str, nargs='*', help='List of source URLs to filter by')
+        parser = argparse.ArgumentParser(description='Summarize news from various sources')
+        parser.add_argument('--period', type=str, default='1d', help='Time period (e.g., 1d, 2d, 1w)')
+        parser.add_argument('--sources', type=str, nargs='*', help='List of source URLs to filter by')
+        parser.add_argument('--include-insights', action='store_true', help='Generate insights for the topics')
+        parser.add_argument('--use-sonar', action='store_true', help='Use Sonar model for insights instead of Gemini')
         
-        # args = parser.parse_args()
+        args = parser.parse_args()
         
-        asyncio.run(main())
+        asyncio.run(main(
+            period=args.period, 
+            sources=args.sources, 
+            include_insights=args.include_insights,
+            use_sonar_for_insights=args.use_sonar
+        ))
         logger.info("[SCRIPT_COMPLETE] data_summarizer.py execution completed")
     except Exception as e:
         logger.error(f"[SCRIPT_ERROR] Unhandled exception in data_summarizer.py: {e}")
