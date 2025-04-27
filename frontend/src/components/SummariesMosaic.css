@@ -198,7 +198,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   position: relative;
 }
 
@@ -206,6 +206,7 @@
   display: flex;
   flex-direction: column;
   margin-bottom: 0.5rem;
+  flex-shrink: 0;
 }
 
 .tile-title {
@@ -268,15 +269,16 @@
   line-height: 1.3;
   margin: 0 0 0.5rem 0;
   flex-grow: 1;
-  max-height: 8rem; /* Set a fixed max height */
-  overflow-y: auto; /* Enable vertical scrolling */
-  overflow-x: hidden; /* Hide horizontal scrollbar */
-  display: block; /* Changed from -webkit-box to allow scrolling */
+  min-height: 0;
+  height: auto;
+  max-height: calc(100% - 3rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: block;
   opacity: 0.9;
-  /* Remove line clamp properties since we're using scrolling now */
-  scrollbar-width: none; /* Hide scrollbar for Firefox */
-  -ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
-  cursor: pointer; /* Indicate that the summary is clickable */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: pointer;
 }
 
 /* Show scrollbar on hover for webkit browsers */
@@ -298,27 +300,27 @@
 
 .medium-rectangle .tile-summary,
 .wide-rectangle .tile-summary {
-  max-height: 4rem;
+  max-height: calc(100% - 3rem);
 }
 
 .tall-rectangle .tile-summary,
 .tall-xl-rectangle .tile-summary {
-  max-height: 12rem;
+  max-height: calc(100% - 3.5rem);
 }
 
 .large-rectangle .tile-summary {
   font-size: 0.8rem;
-  max-height: 7rem;
+  max-height: calc(100% - 3.5rem);
 }
 
 .wide-xl-rectangle .tile-summary {
   font-size: 0.8rem;
-  max-height: 7rem;
+  max-height: calc(100% - 3.5rem);
 }
 
 .xl-square .tile-summary {
   font-size: 0.8rem;
-  max-height: 14rem;
+  max-height: calc(100% - 4rem);
 }
 
 .tile-insights-indicator {
@@ -336,6 +338,7 @@
   align-items: center;
   font-size: 0.7rem;
   margin-top: auto;
+  flex-shrink: 0;
 }
 
 .importance-badge {
