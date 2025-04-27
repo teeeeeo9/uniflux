@@ -264,8 +264,7 @@ async def get_insights():
                 "summary": "Detailed summary...",
                 "message_ids": [1, 2, 3],
                 "importance": 8
-            },
-            ...
+            }
         ]
     }
     
@@ -286,8 +285,7 @@ async def get_insights():
                     "short": "...",
                     "neutral": "..."
                 }
-            },
-            ...
+            }
         ]
     }
     """
@@ -310,15 +308,16 @@ async def get_insights():
         summaries = data['topics']
         if not summaries or not isinstance(summaries, list):
             return jsonify({"error": "Invalid 'topics' field. Expected a non-empty array."}), 400
-            
-        logger.info(f"REQUEST [{request_id}] - Processing {len(summaries)} topics for insights")
+        
+        topic_names = [topic.get('topic', 'Unknown') for topic in summaries]
+        logger.info(f"REQUEST [{request_id}] - Processing insights for topic(s): {', '.join(topic_names)}")
         
         # Generate insights for each topic with direct await
-        logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topics")
+        logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topic(s)")
         topics_with_insights = await generate_insights(summaries)
         
         # Log detailed result information
-        logger.info(f"RESPONSE [{request_id}] - Generated insights for {len(topics_with_insights)} topics")
+        logger.info(f"RESPONSE [{request_id}] - Generated insights for {len(topics_with_insights)} topic(s)")
         
         # Create and log the response
         response = {"topics": topics_with_insights}

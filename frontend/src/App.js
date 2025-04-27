@@ -91,21 +91,32 @@ function App() {
       return;
     }
 
+    if (selectedTopicIndex === null) {
+      setError('No topic selected. Please select a topic to generate insights.');
+      return;
+    }
+
+    const selectedTopic = summaries.topics[selectedTopicIndex];
+    if (!selectedTopic) {
+      setError('Selected topic not found.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setLoadingStep('insights');
     
     try {
-      console.log('Fetching insights for summaries');
+      console.log(`Fetching insights for topic: ${selectedTopic.topic}`);
       
-      // Send the POST request to get insights
+      // Send the POST request to get insights only for the selected topic
       const insightsResponse = await fetch('/insights', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(summaries)
+        body: JSON.stringify({ topics: [selectedTopic] })
       });
       
       // Handle non-OK insights response
@@ -127,8 +138,26 @@ function App() {
       const insightsData = await insightsResponse.json();
       console.log('Insights response:', insightsData);
       
-      // Set the insights data
-      setInsights(insightsData);
+      // Set the insights data - merge with existing topics if we already have some
+      if (insights && insights.topics) {
+        // Create a map of existing insights by topic
+        const topicMap = new Map();
+        insights.topics.forEach(topic => {
+          topicMap.set(topic.topic, topic);
+        });
+
+        // Add the new insight
+        if (insightsData.topics && insightsData.topics.length > 0) {
+          const newTopic = insightsData.topics[0];
+          topicMap.set(newTopic.topic, newTopic);
+        }
+
+        // Convert map back to array
+        setInsights({ topics: Array.from(topicMap.values()) });
+      } else {
+        // First insight
+        setInsights(insightsData);
+      }
     } catch (err) {
       console.error('Error fetching insights:', err);
       setError(err.message || 'An error occurred while generating insights');
