@@ -13,18 +13,20 @@
 .feedback-button {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  background-color: #333;
   color: white;
   border: none;
-  border-radius: 50px 0 0 50px;
+  border-radius: 0;
   padding: 12px 20px 12px 15px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
   width: 130px;
-  justify-content: flex-start;
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .feedback-button::before {
@@ -34,9 +36,9 @@
   top: 0;
   bottom: 0;
   width: 30px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-  border-radius: 50px 0 0 50px;
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+  background-color: #333;
+  border-radius: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   z-index: -1;
 }
 
@@ -46,8 +48,7 @@
 }
 
 .feedback-icon {
-  margin-right: 8px;
-  font-size: 16px;
+  display: none;
 }
 
 .feedback-overlay {
