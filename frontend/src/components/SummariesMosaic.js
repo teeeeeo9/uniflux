@@ -1,7 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import './SummariesMosaic.css';
 
 const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights = false }) => {
+  // State to track which tooltips have been disabled by the user
+  const [hideImportanceTooltip, setHideImportanceTooltip] = useState(false);
+  const [hideMessageCountTooltip, setHideMessageCountTooltip] = useState(false);
+  
   // Map metatopics to predefined colors
   const getMetatopicColor = (metatopic) => {
     const metatopicLower = (metatopic || '').toLowerCase();
@@ -413,6 +417,20 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     if (area === 2) return 100; // 2×1, 1×2
     return 70; // 1×1
   };
+  
+  // Handle the scroll to messages section
+  const scrollToMessages = (e, index) => {
+    e.stopPropagation(); // Prevent triggering the tile click
+    onSelectTopic(index);
+    
+    // Add a small delay to ensure the topic details have rendered
+    setTimeout(() => {
+      const messagesSection = document.querySelector('.messages-section');
+      if (messagesSection) {
+        messagesSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
 
   // Now add the conditional return after all hooks are defined
   if (!topics || topics.length === 0) {
@@ -465,11 +483,53 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                 )}
                 
                 <div className="tile-footer">
-                  <span className="importance-badge">
-                    {topic.importance}/10
+                  <span className="tooltip importance-tooltip">
+                    <span className="importance-badge">
+                      {topic.importance}/10
+                    </span>
+                    {!hideImportanceTooltip && (
+                      <div className="tooltip-content">
+                        <p>Importance rating for this topic based on relevance and impact.</p>
+                        <div className="tooltip-actions">
+                          <button 
+                            className="tooltip-action-btn"
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setHideImportanceTooltip(true); 
+                            }}
+                          >
+                            Don't show anymore
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </span>
-                  <span className="message-count">
-                    {topic.message_ids?.length || 0} messages
+                  <span className="tooltip message-tooltip">
+                    <span className="message-count">
+                      {topic.message_ids?.length || 0} messages
+                    </span>
+                    {!hideMessageCountTooltip && (
+                      <div className="tooltip-content">
+                        <p>Number of messages related to this topic.</p>
+                        <div className="tooltip-actions">
+                          <button 
+                            className="tooltip-action-btn go-to-messages"
+                            onClick={(e) => scrollToMessages(e, index)}
+                          >
+                            Go to messages
+                          </button>
+                          <button 
+                            className="tooltip-action-btn"
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setHideMessageCountTooltip(true); 
+                            }}
+                          >
+                            Don't show anymore
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </span>
                 </div>
               </div>
