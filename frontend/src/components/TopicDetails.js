@@ -139,9 +139,9 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
           Insights & Analysis
         </button>
         <button 
-          className={`tab-button ${activeTab === 'execution' ? 'active' : ''}`}
-          onClick={() => handleTabChange('execution')}
-          disabled={!hasInsights || !topic.insights}
+          className="tab-button coming-soon"
+          title="Coming soon!"
+          disabled={true}
         >
           Execution
         </button>
@@ -151,6 +151,11 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
         {activeTab === 'messages' && (
           <div className="messages-section">
             <h3 className="content-subtitle">Original Messages</h3>
+            {topic.summary && (
+              <div className="topic-summary-block">
+                <p className="topic-summary-text">{topic.summary}</p>
+              </div>
+            )}
             {topic.message_ids && topic.message_ids.length > 0 ? (
               <>
                 {loadingMessages ? (
@@ -223,40 +228,26 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
                   <h4 className="insight-title">Neutral Perspective</h4>
                   <p className="insight-text">{topic.insights.neutral || 'No neutral insights available.'}</p>
                 </div>
+
+                {/* Execution options section moved to insights tab */}
+                {topic.insights && topic.insights.exec_options_long && topic.insights.exec_options_long.length > 0 && (
+                  <div className="insight-block execution-block">
+                    <h4 className="insight-title">Execution Options</h4>
+                    <div className="execution-options">
+                      {topic.insights.exec_options_long.map((option, idx) => (
+                        <div key={idx} className="execution-option">
+                          <h5 className="option-title">{option.text}</h5>
+                          <p className="option-description">{option.description}</p>
+                          <span className="option-type">{option.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="no-content">No insights available for this topic yet. Please use the "Discover actionable insights" button in the Original Messages tab.</p>
             )}
-          </div>
-        )}
-        
-        {activeTab === 'execution' && (
-          <div className="execution-section">
-            <h3 className="content-subtitle">Execution Options</h3>
-            
-            {hasInsights && topic.insights && topic.insights.exec_options_long && topic.insights.exec_options_long.length > 0 ? (
-              <div className="execution-options">
-                {topic.insights.exec_options_long.map((option, idx) => (
-                  <div key={idx} className="execution-option">
-                    <h4 className="option-title">{option.text}</h4>
-                    <p className="option-description">{option.description}</p>
-                    <span className="option-type">{option.type}</span>
-                    {/* Execution button would go here in the future */}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="no-content">
-                {hasInsights 
-                  ? 'No execution options available for this topic.' 
-                  : 'Generate insights first to see execution options.'}
-              </p>
-            )}
-            
-            <p className="execution-placeholder">
-              This section will allow users to take action based on insights.
-              (Feature coming soon)
-            </p>
           </div>
         )}
       </div>

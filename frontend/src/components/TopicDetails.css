@@ -91,6 +91,19 @@
   background-color: #f1f5f9;
 }
 
+.tab-button.coming-soon {
+  position: relative;
+  cursor: not-allowed;
+  background-color: #f1f1f1;
+}
+
+.tab-button.coming-soon::after {
+  content: '🚧';
+  font-size: 1rem;
+  margin-left: 0.5rem;
+  opacity: 0.8;
+}
+
 .topic-content {
   padding: 1.5rem;
 }
@@ -232,6 +245,68 @@
 }
 
 .option-type {
+  display: inline-block;
+  background-color: #f1f5f9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+/* Topic summary block in messages section */
+.topic-summary-block {
+  background-color: #f5f7fa;
+  border-left: 4px solid var(--color-primary);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.25rem;
+}
+
+.topic-summary-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  font-style: italic;
+  margin: 0;
+}
+
+/* Update the execution block within insights */
+.execution-block {
+  border-top: 2px dashed var(--border-color);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.execution-block .execution-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.execution-block .execution-option {
+  background-color: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 0.375rem;
+  padding: 1rem;
+}
+
+.execution-block .option-title {
+  font-size: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.execution-block .option-description {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.execution-block .option-type {
   display: inline-block;
   background-color: #f1f5f9;
   padding: 0.25rem 0.75rem;

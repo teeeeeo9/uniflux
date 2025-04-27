@@ -246,44 +246,41 @@ const Settings = ({ onFetchSummaries }) => {
               ))
             )}
 
-            {/* Custom Sources section as a category block - disabled for non-subscribers */}
-            <div className="source-category-block disabled-feature">
+            {/* Custom Sources section as a category block - email subscription */}
+            <div className="source-category-block disabled-feature custom-sources-block">
               <div className="category-header">
                 <h3>Custom Sources</h3>
-                <span className="premium-badge">PRO</span>
               </div>
               <div className="source-list-container-grid">
                 <div className="custom-source-item subscription-message">
-                  <p>Add your own custom news sources with our subscription plan.</p>
-                  <button className="upgrade-button" type="button" disabled>
-                    Subscribe to unlock
-                  </button>
+                  <p>Enter your email to get notified when we add support for custom news sources.</p>
+                  <div className="email-subscription-form">
+                    <input 
+                      type="email" 
+                      className="email-input" 
+                      placeholder="Your email address"
+                      aria-label="Email address for subscription"
+                    />
+                    <button 
+                      className="subscribe-button" 
+                      type="button"
+                      onClick={() => {
+                        const emailInput = document.querySelector('.email-input');
+                        const email = emailInput?.value;
+                        if (email && email.includes('@')) {
+                          // Simple email validation
+                          alert(`Thank you for subscribing with ${email}! We'll notify you when custom sources are available.`);
+                          if (emailInput) emailInput.value = '';
+                        } else {
+                          alert('Please enter a valid email address.');
+                        }
+                      }}
+                    >
+                      Subscribe
+                    </button>
+                  </div>
                 </div>
-                {/* Keep the original inputs but make them disabled */}
-                <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                  {customSources.map((source, index) => (
-                    <div key={index} className="source-item custom-source-item">
-                      <div className="custom-source-row">
-                        <input
-                          type="text"
-                          className="custom-source-input"
-                          value={source}
-                          disabled
-                          placeholder="Enter source URL"
-                        />
-                        {customSources.length > 1 && source.trim() === '' && (
-                          <button 
-                            type="button" 
-                            className="remove-source-btn"
-                            disabled
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {/* Custom source inputs remain hidden */}
               </div>
             </div>
           </div>

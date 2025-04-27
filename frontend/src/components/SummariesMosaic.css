@@ -279,6 +279,25 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   cursor: pointer;
+  position: relative;
+}
+
+/* Indicator for truncated text */
+.tile-summary::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.15));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tile-summary.has-overflow::after {
+  opacity: 1;
 }
 
 /* Show scrollbar on hover for webkit browsers */

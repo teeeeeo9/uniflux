@@ -146,16 +146,17 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     // Place each tile with optimized sizing
     const positionedTiles = [];
     
-    // Process tiles in order of importance, then size
-    const sortedTopics = [...topics].map((topic, index) => ({ 
+    // Process tiles in random order instead of by importance
+    const randomizedTopics = [...topics].map((topic, index) => ({ 
       topic, 
       index,
-      importance: topic.importance || 5
+      // Generate a random value for each topic to use for sorting
+      randomValue: Math.random()
     }))
-    .sort((a, b) => b.importance - a.importance); // Sort by importance descending
+    .sort((a, b) => a.randomValue - b.randomValue); // Sort by random value
     
     // First placement pass - ensure no intersections (absolute priority)
-    sortedTopics.forEach(({ topic, index, importance }) => {
+    randomizedTopics.forEach(({ topic, index }) => {
       // Get initial ideal size based on topic properties
       const { width, height } = getInitialTileSize(topic, index, topics.length);
       
@@ -349,7 +350,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
           // If no expansion was possible, create a new small tile for this gap
           if (!expanded && maxWidth > 0 && maxHeight > 0) {
             // Find a tile we can clone
-            let newTileIndex = sortedTopics.length > 0 ? sortedTopics[0].index : 0;
+            let newTileIndex = randomizedTopics.length > 0 ? randomizedTopics[0].index : 0;
             const cloneSource = positionedTiles.find(t => t.index === newTileIndex);
             
             // Create a new tile filling the gap
@@ -422,17 +423,37 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     
     // Add a longer delay to ensure the topic details have fully rendered
     setTimeout(() => {
-      const messagesSection = document.querySelector('.messages-section');
-      if (messagesSection) {
-        messagesSection.scrollIntoView({ behavior: 'smooth' });
-        
-        // Find the insights button and highlight it briefly to guide the user
-        const insightsButton = document.querySelector('.generate-insights-button');
-        if (insightsButton) {
-          insightsButton.classList.add('highlight-button');
+      // First check if messages tab is active
+      const activeTab = document.querySelector('.tab-button.active');
+      const isMessagesTabActive = activeTab?.textContent.trim() === 'Original Messages';
+      
+      // If messages tab is not active, click it
+      if (!isMessagesTabActive) {
+        const messagesTab = document.querySelector('.tab-button:nth-child(1)');
+        if (messagesTab) {
+          messagesTab.click();
+          // Add extra delay to allow tab switch to complete
           setTimeout(() => {
-            insightsButton.classList.remove('highlight-button');
-          }, 1000);
+            const messagesSection = document.querySelector('.messages-section');
+            if (messagesSection) {
+              messagesSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
+        }
+      } else {
+        // Messages tab is already active, just scroll
+        const messagesSection = document.querySelector('.messages-section');
+        if (messagesSection) {
+          messagesSection.scrollIntoView({ behavior: 'smooth' });
+          
+          // Find the insights button and highlight it briefly to guide the user
+          const insightsButton = document.querySelector('.generate-insights-button');
+          if (insightsButton) {
+            insightsButton.classList.add('highlight-button');
+            setTimeout(() => {
+              insightsButton.classList.remove('highlight-button');
+            }, 1000);
+          }
         }
       }
     }, 250); // Increase timeout to ensure DOM is ready
@@ -498,6 +519,17 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                   <p 
                     className="tile-summary"
                     onClick={(e) => scrollToMessages(e, actualIndex)}  
+                    ref={el => {
+                      // Check if content is overflowing and add class if needed
+                      if (el) {
+                        const isOverflowing = el.scrollHeight > el.clientHeight;
+                        if (isOverflowing) {
+                          el.classList.add('has-overflow');
+                        } else {
+                          el.classList.remove('has-overflow');
+                        }
+                      }
+                    }}
                   >
                     {topic.summary}
                   </p>
