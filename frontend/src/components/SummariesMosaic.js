@@ -1,23 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import './SummariesMosaic.css';
 
-const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights = false, onScrollToMessages }) => {
+const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights = false }) => {
   // State to track which tooltips have been disabled by the user
   const [hideImportanceTooltip, setHideImportanceTooltip] = useState(false);
   const [hideMessageCountTooltip, setHideMessageCountTooltip] = useState(false);
-  
-  // Generate stable random values for each topic that won't change on re-renders
-  const topicsWithRandomValues = useMemo(() => {
-    return topics.map((topic, index) => ({
-      ...topic,
-      // These random values will be stable for each topic based on its index
-      _randomValue1: (Math.sin(index * 7919) + 1) / 2, // Prime number multiplication for better distribution
-      _randomValue2: (Math.cos(index * 7907) + 1) / 2,
-      _randomValue3: (Math.sin((index + 1) * 7901) + 1) / 2,
-      // Random value for sorting that's stable for the topic
-      _sortValue: (Math.sin(index * 7883) + 1) / 2
-    }));
-  }, [topics]);
   
   // Map metatopics to predefined colors
   const getMetatopicColor = (metatopic) => {
@@ -41,54 +28,60 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     return 'importance-neutral';
   };
 
-  // Get initial size based on content and stable pseudo-random values
-  const getInitialTileSize = (topic) => {
+  // Get initial size based on content, importance and randomness
+  const getInitialTileSize = (topic, index, totalTopics) => {
     const summary = topic.summary || '';
+    const importance = topic.importance || 5;
     
-    // Use the stable random values from the topic
-    const random1 = topic._randomValue1;
-    const random2 = topic._randomValue2;
-    const random3 = topic._randomValue3;
+    // Create multiple pseudorandom values for more randomness
+    // These are deterministic but create more varied patterns
+    const seed1 = (index * 17 + 13) % 29;
+    const seed2 = (index * 23 + 7) % 31;
+    const seed3 = (index * 19 + 11) % 37;
+    
+    const random1 = seed1 / 29; // 0-1 range
+    const random2 = seed2 / 31; // 0-1 range
+    const random3 = seed3 / 37; // 0-1 range
     
     // Combined random factor (very varied)
     const randomFactor = (random1 + random2 + random3) / 3;
     
-    // Increase probability of vertical rectangles
-    const verticalBias = random3 > 0.5 ? 1.5 : 1.0; // 50% chance of vertical bias
+    // Give more weight to importance for sizing
+    // Scale importance to have stronger effect (0-20 range instead of 0-10)
+    const importanceScore = Math.pow(importance / 10, 1.3) * 2;
     
-    // Content length still matters
+    // Content length still matters but with less weight
     const contentScore = Math.min(1, summary.length / 500);
     
-    // Combine factors with pure randomness having the most weight
-    const sizeScore = (contentScore * 0.2) + (randomFactor * 3.0);
+    // Combine factors with randomness having significant weight
+    // This makes sizing more random while still respecting importance
+    const sizeScore = (importanceScore * 0.5) + (contentScore * 0.2) + (randomFactor * 2.5);
     
     // Map to tile sizes with strong random component
     // Include all allowed sizes with varying probabilities
     
-    // Larger tiles (rarer)
-    if (sizeScore > 3.2 && random1 > 0.7) return { width: 3, height: 3 }; // 3w×3h (very rare)
-    if (sizeScore > 2.8 && random2 > 0.65) return { width: 4, height: 2 }; // 4w×2h (rare)
-    if (sizeScore > 2.5 && random3 > 0.6) return { width: 3, height: 2 }; // 3w×2h (uncommon)
+    // Larger tiles (rarer, but more likely for important news)
+    if (sizeScore > 3.2 && random1 > 0.7) return { width: 3, height: 3 }; // 3w×3h (rarest)
+    if (sizeScore > 2.8 && random2 > 0.6) return { width: 4, height: 2 }; // 4w×2h (rare)
+    if (sizeScore > 2.5 && random3 > 0.5) return { width: 3, height: 2 }; // 3w×2h (uncommon)
     
     // Medium tiles (moderate frequency)
-    if (sizeScore > 1.8 && random1 > 0.45) return { width: 3, height: 1 }; // 3w×1h
-    if (sizeScore > 1.5 && random2 > 0.4) return { width: 2, height: 2 }; // 2w×2h
+    if (sizeScore > 1.8 && random1 > 0.4) return { width: 3, height: 1 }; // 3w×1h
+    if (sizeScore > 1.5 && random2 > 0.3) return { width: 2, height: 2 }; // 2w×2h
+    if (sizeScore > 1.2 && random3 > 0.3) return { width: 1, height: 3 }; // 1w×3h
     
-    // More vertical tiles 
-    if (sizeScore > 1.0 && random3 > 0.4 * verticalBias) return { width: 1, height: 3 }; // 1w×3h (increased probability)
+    // Smaller tiles (common)
+    if (sizeScore > 0.8 && random1 > 0.2) return { width: 2, height: 1 }; // 2w×1h
+    if (sizeScore > 0.5 && random2 > 0.2) return { width: 1, height: 2 }; // 1w×2h
     
-    // Smaller tiles
-    if (sizeScore > 0.7 && random1 > 0.3) return { width: 2, height: 1 }; // 2w×1h
-    if (sizeScore > 0.4 && random2 > 0.3 * verticalBias) return { width: 1, height: 2 }; // 1w×2h (increased probability)
-    
-    // Default size
+    // Default size (most common)
     return { width: 1, height: 1 }; // 1w×1h
   };
 
   // Calculate layout with perfect packing
   const packedLayout = useMemo(() => {
     // Return empty array if no topics
-    if (!topicsWithRandomValues || topicsWithRandomValues.length === 0) return { tiles: [], maxRow: 0 };
+    if (!topics || topics.length === 0) return { tiles: [], maxRow: 0 };
     
     // Maximum width for the grid (5 units per row)
     const MAX_WIDTH = 5;
@@ -153,14 +146,18 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     // Place each tile with optimized sizing
     const positionedTiles = [];
     
-    // Process tiles in stably randomized order
-    const randomizedTopics = [...topicsWithRandomValues]
-      .sort((a, b) => a._sortValue - b._sortValue); // Sort by stable random value
+    // Process tiles in order of importance, then size
+    const sortedTopics = [...topics].map((topic, index) => ({ 
+      topic, 
+      index,
+      importance: topic.importance || 5
+    }))
+    .sort((a, b) => b.importance - a.importance); // Sort by importance descending
     
     // First placement pass - ensure no intersections (absolute priority)
-    randomizedTopics.forEach((topic, index) => {
-      // Get initial ideal size based on topic properties with stable randomness
-      const { width, height } = getInitialTileSize(topic);
+    sortedTopics.forEach(({ topic, index, importance }) => {
+      // Get initial ideal size based on topic properties
+      const { width, height } = getInitialTileSize(topic, index, topics.length);
       
       // Find first valid position with potentially reduced size
       let finalWidth = width;
@@ -328,8 +325,8 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
               for (let r = adjacentTile.row; r < adjacentTile.row + adjacentTile.height; r++) {
                 if (r >= grid.height || (grid.cells[r][col] !== null && grid.cells[r][col] !== adjacentTileIndex)) {
                   canExpand = false;
-                  break;
-                }
+              break;
+            }
               }
               
               if (canExpand) {
@@ -351,9 +348,9 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
           
           // If no expansion was possible, create a new small tile for this gap
           if (!expanded && maxWidth > 0 && maxHeight > 0) {
-            // Find a tile we can clone - use a deterministic approach
-            const gapFillingSeed = (row * 997 + col * 1009) % randomizedTopics.length; // Use prime numbers for good distribution
-            const cloneSource = randomizedTopics[gapFillingSeed];
+            // Find a tile we can clone
+            let newTileIndex = sortedTopics.length > 0 ? sortedTopics[0].index : 0;
+            const cloneSource = positionedTiles.find(t => t.index === newTileIndex);
             
             // Create a new tile filling the gap
             if (cloneSource) {
@@ -362,9 +359,9 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
               const gapTileIndex = `gap_${row}_${col}`;
               
               const gapTile = {
-                topic: cloneSource,
+                topic: cloneSource.topic,
                 index: gapTileIndex, // Use the unique gap tile index
-                originalIndex: gapFillingSeed, // Store original index for data reference
+                originalIndex: cloneSource.index, // Store original index for data reference
                 row: row,
                 col: col,
                 width: maxWidth,
@@ -399,7 +396,7 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     }));
     
     return { tiles, maxRow: actualMaxRow + 1 }; // +1 because grid is 1-indexed
-  }, [topicsWithRandomValues]);
+  }, [topics]);
 
   // Get tile class name based on dimensions
   const getTileClassName = (width, height) => {
@@ -414,27 +411,6 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     return 'small-square';
   };
 
-  // Add a memoized function to get CSS grid styles for positioning tiles
-  const renderedLayout = useMemo(() => {
-    // If layout isn't calculated yet, return empty
-    if (!packedLayout.tiles || packedLayout.tiles.length === 0) {
-      return [];
-    }
-
-    // Map each tile to include its CSS grid position styles
-    return packedLayout.tiles.map(tile => ({
-      ...tile,
-      style: {
-        backgroundColor: getMetatopicColor(tile.topic.metatopic),
-        gridColumnStart: tile.gridColumnStart,
-        gridColumnEnd: tile.gridColumnEnd,
-        gridRowStart: tile.gridRowStart,
-        gridRowEnd: tile.gridRowEnd
-      },
-      className: `mosaic-tile ${getTileClassName(tile.width, tile.height)} ${getImportanceClass(tile.topic.importance || 5)} ${selectedTopicId === (typeof tile.index === 'string' && tile.index.startsWith('gap_') ? tile.topic.originalIndex || 0 : tile.index) ? 'selected' : ''}`
-    }));
-  }, [packedLayout, selectedTopicId]); // Recalculate only when selectedTopicId or packedLayout changes
-
   // Handle the scroll to messages section
   const scrollToMessages = (e, index) => {
     // Completely stop event propagation to all parent elements
@@ -444,13 +420,22 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     // First select the topic
     onSelectTopic(index);
     
-    // Use the callback to scroll to messages section
-    // This will be handled by the parent component
+    // Add a longer delay to ensure the topic details have fully rendered
     setTimeout(() => {
-      if (onScrollToMessages) {
-        onScrollToMessages();
+      const messagesSection = document.querySelector('.messages-section');
+      if (messagesSection) {
+        messagesSection.scrollIntoView({ behavior: 'smooth' });
+        
+        // Find the insights button and highlight it briefly to guide the user
+        const insightsButton = document.querySelector('.generate-insights-button');
+        if (insightsButton) {
+          insightsButton.classList.add('highlight-button');
+          setTimeout(() => {
+            insightsButton.classList.remove('highlight-button');
+          }, 1000);
+        }
       }
-    }, 100); // Small delay to ensure topic selection is processed
+    }, 250); // Increase timeout to ensure DOM is ready
   };
 
   // Now add the conditional return after all hooks are defined
@@ -471,7 +456,11 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
           gridTemplateColumns: `repeat(5, 1fr)` // Default 5 columns
         }}
       >
-        {renderedLayout.map(({ topic, index, style, className, width, height }) => {
+        {packedLayout.tiles.map(({ topic, index, gridColumnStart, gridColumnEnd, gridRowStart, gridRowEnd, width, height }) => {
+          const baseColor = getMetatopicColor(topic.metatopic);
+          const importanceClass = getImportanceClass(topic.importance || 5);
+          const tileClassName = getTileClassName(width, height);
+          
           // For gap tiles, we need to determine the actual index to use for selection
           const actualIndex = typeof index === 'string' && index.startsWith('gap_') 
             ? topic.originalIndex || parseInt(index.split('_')[2], 10) || 0
@@ -480,8 +469,14 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
           return (
             <div 
               key={index}
-              className={className}
-              style={style}
+              className={`mosaic-tile ${tileClassName} ${importanceClass} ${selectedTopicId === actualIndex ? 'selected' : ''}`}
+              style={{ 
+                backgroundColor: baseColor,
+                gridColumnStart,
+                gridColumnEnd,
+                gridRowStart,
+                gridRowEnd
+              }}
               onClick={() => onSelectTopic(actualIndex)}
             >
               <div className="tile-content">
