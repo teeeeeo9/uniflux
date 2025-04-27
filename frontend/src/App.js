@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Settings from './components/Settings';
 import SummariesMosaic from './components/SummariesMosaic';
 import TopicDetails from './components/TopicDetails';
@@ -12,6 +12,7 @@ function App() {
   const [error, setError] = useState(null);
   const [selectedTopicIndex, setSelectedTopicIndex] = useState(null);
   const [loadingStep, setLoadingStep] = useState(null);
+  const topicDetailsRef = useRef(null); // Reference to the TopicDetails component
 
   const fetchSummaries = async (settings) => {
     setLoading(true);
@@ -202,6 +203,13 @@ function App() {
   // Determine if we should enable the generate insights button
   const showGenerateInsightsButton = !!selectedTopic && !hasInsights;
 
+  // Function to scroll to messages section regardless of active tab
+  const scrollToMessages = () => {
+    if (topicDetailsRef.current) {
+      topicDetailsRef.current.scrollToMessages();
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -252,6 +260,7 @@ function App() {
               })}
               onSelectTopic={handleSelectTopic}
               selectedTopicId={selectedTopicIndex}
+              onScrollToMessages={scrollToMessages}
             />
           </div>
         )}
@@ -263,6 +272,7 @@ function App() {
               topic={selectedTopic} 
               hasInsights={hasInsights}
               onGenerateInsights={showGenerateInsightsButton ? fetchInsights : undefined}
+              ref={topicDetailsRef}
             />
           </div>
         )}

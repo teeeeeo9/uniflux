@@ -1,10 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import './TopicDetails.css';
 
-const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
+const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsights }, ref) => {
   const [activeTab, setActiveTab] = useState('messages');
   const [messageContents, setMessageContents] = useState({});
   const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Expose functions to parent components via ref
+  useImperativeHandle(ref, () => ({
+    // Function that can be called from parent to scroll to messages section
+    scrollToMessages: () => {
+      // First switch to messages tab if it's not active
+      if (activeTab !== 'messages') {
+        setActiveTab('messages');
+        // Allow time for the tab switch to take effect
+        setTimeout(() => {
+          const messagesSection = document.querySelector('.messages-section');
+          if (messagesSection) {
+            messagesSection.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 50);
+      } else {
+        // Messages tab is already active, just scroll
+        const messagesSection = document.querySelector('.messages-section');
+        if (messagesSection) {
+          messagesSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+  }));
 
   // Fetch message contents when topic changes or when messages tab is activated
   useEffect(() => {
@@ -253,7 +277,7 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
       </div>
     </div>
   );
-};
+});
 
 // Helper function to get color based on importance
 function getImportanceColor(importance) {
