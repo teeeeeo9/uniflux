@@ -278,13 +278,39 @@ async def get_insights():
                 "message_ids": [1, 2, 3],
                 "importance": 8,
                 "insights": {
-                    "general": "...",
-                    "long": "...",
-                    "exec_options_long": [
-                        {"text": "...", "description": "...", "type": "defi"}
+                    "analysis_summary": "Concise interpretation of the news...",
+                    "stance": "Long/Short/Neutral/Long-Neutral/Short-Neutral/No Actionable Insight",
+                    "rationale_long": "Reasons supporting a long position...",
+                    "rationale_short": "Reasons supporting a short position...",
+                    "rationale_neutral": "Reasons for neutral stance...",
+                    "risks_and_watchouts": [
+                        "Risk 1 description...",
+                        "Risk 2 description..."
                     ],
-                    "short": "...",
-                    "neutral": "..."
+                    "key_questions_for_user": [
+                        "Question 1 for research...",
+                        "Question 2 for research..."
+                    ],
+                    "suggested_instruments_long": [
+                        {
+                            "instrument": "Instrument name...",
+                            "rationale": "Explanation for this instrument...",
+                            "type": "DeFi/TradFi"
+                        }
+                    ],
+                    "suggested_instruments_short": [
+                        {
+                            "instrument": "Instrument name...",
+                            "rationale": "Explanation for this instrument...",
+                            "type": "DeFi/TradFi"
+                        }
+                    ],
+                    "useful_resources": [
+                        {
+                            "url": "https://example.com",
+                            "description": "Resource description..."
+                        }
+                    ]
                 }
             }
         ]
@@ -460,13 +486,39 @@ async def get_insights_legacy():
                 "importance": 8,
                 "metatopic": "Category",
                 "insights": {
-                    "general": "...",
-                    "long": "...",
-                    "exec_options_long": [
-                        {"text": "...", "description": "...", "type": "defi"}
+                    "analysis_summary": "Concise interpretation of the news...",
+                    "stance": "Long/Short/Neutral/Long-Neutral/Short-Neutral/No Actionable Insight",
+                    "rationale_long": "Reasons supporting a long position...",
+                    "rationale_short": "Reasons supporting a short position...",
+                    "rationale_neutral": "Reasons for neutral stance...",
+                    "risks_and_watchouts": [
+                        "Risk 1 description...",
+                        "Risk 2 description..."
                     ],
-                    "short": "...",
-                    "neutral": "..."
+                    "key_questions_for_user": [
+                        "Question 1 for research...",
+                        "Question 2 for research..."
+                    ],
+                    "suggested_instruments_long": [
+                        {
+                            "instrument": "Instrument name...",
+                            "rationale": "Explanation for this instrument...",
+                            "type": "DeFi/TradFi"
+                        }
+                    ],
+                    "suggested_instruments_short": [
+                        {
+                            "instrument": "Instrument name...",
+                            "rationale": "Explanation for this instrument...",
+                            "type": "DeFi/TradFi"
+                        }
+                    ],
+                    "useful_resources": [
+                        {
+                            "url": "https://example.com",
+                            "description": "Resource description..."
+                        }
+                    ]
                 }
             },
             ...

@@ -465,6 +465,25 @@ async def generate_insights(summary_data, use_sonar=True):
                 insights = json.loads(json_str)
                 logger.info(f"[INSIGHTS_SUCCESS_{i+1}] Successfully parsed insights for topic: {topic_name}")
                 
+                # Validate expected fields in new JSON structure
+                expected_fields = [
+                    "analysis_summary", "stance", "rationale_long", "rationale_short", 
+                    "rationale_neutral", "risks_and_watchouts", "key_questions_for_user", 
+                    "suggested_instruments_long", "suggested_instruments_short", "useful_resources"
+                ]
+                
+                missing_fields = [field for field in expected_fields if field not in insights]
+                if missing_fields:
+                    logger.warning(f"[INSIGHTS_VALIDATION_{i+1}] Missing expected fields in response: {missing_fields}")
+                    # Add default empty values for missing fields to ensure consistency
+                    for field in missing_fields:
+                        if field in ["risks_and_watchouts", "key_questions_for_user", 
+                                    "suggested_instruments_long", "suggested_instruments_short", 
+                                    "useful_resources"]:
+                            insights[field] = []
+                        else:
+                            insights[field] = ""
+                
                 # Log the formatted JSON insights
                 formatted_insights = json.dumps(insights, indent=2)
                 logger.info(f"[INSIGHTS_JSON_{i+1}] Generated insights:\n{formatted_insights}")
@@ -475,9 +494,8 @@ async def generate_insights(summary_data, use_sonar=True):
                 logger.debug(f"[INSIGHTS_ADDED_{i+1}] Added insights to topic: {topic_name}")
                 
                 # Log insight types
-                if isinstance(insights, dict):
-                    insight_keys = list(insights.keys())
-                    logger.debug(f"[INSIGHTS_DETAIL_{i+1}] Insight categories: {insight_keys}")
+                insight_keys = list(insights.keys())
+                logger.debug(f"[INSIGHTS_DETAIL_{i+1}] Insight categories: {insight_keys}")
                 
                 enhanced_summaries.append(enhanced_topic)
                 

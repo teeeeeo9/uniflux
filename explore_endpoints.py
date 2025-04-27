@@ -3,6 +3,7 @@ import requests
 import json
 import sqlite3
 from config import DATABASE
+import random
 
 # Define the base URL of your backend (adjust if your app is running on a different port or address)
 BASE_URL = "http://127.0.0.1:5000"  # Default Flask development server address
@@ -210,18 +211,45 @@ def explore_insights_endpoint(summaries_data=None):
             insights = topic.get("insights", {})
             if insights:
                 print("  Insights:")
-                for key, value in insights.items():
-                    if key == "exec_options_long" or key == "exec_options_short":
-                        options = insights[key]
-                        if options:
-                            print(f"    {key}:")
-                            for option in options:
-                                print(f"      - Text: {option.get('text', 'N/A')}")
-                                print(f"        Description: {option.get('description', 'N/A')}")
-                                print(f"        Type: {option.get('type', 'N/A')}")
-                    else:
-                        print(f"    {key.upper()}:")
-                        print(f"      {value}")
+                
+                # Print analysis summary and stance
+                if insights.get("analysis_summary"):
+                    print(f"    ANALYSIS SUMMARY:")
+                    print(f"      {insights['analysis_summary']}")
+                
+                if insights.get("stance"):
+                    print(f"    STANCE: {insights['stance']}")
+                
+                # Print rationales
+                for rationale_type in ["rationale_long", "rationale_short", "rationale_neutral"]:
+                    if insights.get(rationale_type):
+                        print(f"    {rationale_type.upper()}:")
+                        print(f"      {insights[rationale_type]}")
+                
+                # Print risks and questions as lists
+                for list_field in ["risks_and_watchouts", "key_questions_for_user"]:
+                    if insights.get(list_field) and len(insights[list_field]) > 0:
+                        print(f"    {list_field.upper()}:")
+                        for item in insights[list_field]:
+                            print(f"      - {item}")
+                
+                # Print instruments
+                for instruments_field in ["suggested_instruments_long", "suggested_instruments_short"]:
+                    instruments = insights.get(instruments_field, [])
+                    if instruments and len(instruments) > 0:
+                        print(f"    {instruments_field.upper()}:")
+                        for instrument in instruments:
+                            print(f"      - Instrument: {instrument.get('instrument', 'N/A')}")
+                            print(f"        Rationale: {instrument.get('rationale', 'N/A')}")
+                            print(f"        Type: {instrument.get('type', 'N/A')}")
+                
+                # Print resources
+                resources = insights.get("useful_resources", [])
+                if resources and len(resources) > 0:
+                    print(f"    USEFUL_RESOURCES:")
+                    for resource in resources:
+                        print(f"      - URL: {resource.get('url', 'N/A')}")
+                        print(f"        Description: {resource.get('description', 'N/A')}")
         
         # Ask if the user wants to see the full JSON response
         show_full = input("\nDo you want to see the full JSON response? (y/n): ").lower() == 'y'
@@ -229,19 +257,18 @@ def explore_insights_endpoint(summaries_data=None):
             print("\nFull response:")
             print(json.dumps(data, indent=4, ensure_ascii=False))
             
+        return data
+            
     except requests.exceptions.RequestException as e:
-        print(f"Error accessing /insights: {e}")
+        print(f"Error fetching insights: {e}")
         if hasattr(e, 'response') and e.response:
-            print(f"Response status code: {e.response.status_code}")
             try:
                 error_data = e.response.json()
-                print(f"Response body: {json.dumps(error_data, indent=4)}")
-            except json.JSONDecodeError:
-                print(f"Could not decode error response: {e.response.text}")
-        else:
-            print(f"No response received.")
-    except json.JSONDecodeError:
-        print("Error decoding JSON response from /insights (POST)")
+                print(f"Server error: {error_data.get('error', 'Unknown error')}")
+            except:
+                print(f"Response status code: {e.response.status_code}")
+                print(f"Response text: {e.response.text}")
+        return None
 
 def explore_legacy_insights_endpoint():
     """Tests the GET /insights endpoint that provides both summaries and insights.
@@ -313,18 +340,45 @@ def explore_legacy_insights_endpoint():
             insights = topic.get("insights", {})
             if insights:
                 print("  Insights:")
-                for key, value in insights.items():
-                    if key == "exec_options_long" or key == "exec_options_short":
-                        options = insights[key]
-                        if options:
-                            print(f"    {key}:")
-                            for option in options:
-                                print(f"      - Text: {option.get('text', 'N/A')}")
-                                print(f"        Description: {option.get('description', 'N/A')}")
-                                print(f"        Type: {option.get('type', 'N/A')}")
-                    else:
-                        print(f"    {key.upper()}:")
-                        print(f"      {value}")
+                
+                # Print analysis summary and stance
+                if insights.get("analysis_summary"):
+                    print(f"    ANALYSIS SUMMARY:")
+                    print(f"      {insights['analysis_summary']}")
+                
+                if insights.get("stance"):
+                    print(f"    STANCE: {insights['stance']}")
+                
+                # Print rationales
+                for rationale_type in ["rationale_long", "rationale_short", "rationale_neutral"]:
+                    if insights.get(rationale_type):
+                        print(f"    {rationale_type.upper()}:")
+                        print(f"      {insights[rationale_type]}")
+                
+                # Print risks and questions as lists
+                for list_field in ["risks_and_watchouts", "key_questions_for_user"]:
+                    if insights.get(list_field) and len(insights[list_field]) > 0:
+                        print(f"    {list_field.upper()}:")
+                        for item in insights[list_field]:
+                            print(f"      - {item}")
+                
+                # Print instruments
+                for instruments_field in ["suggested_instruments_long", "suggested_instruments_short"]:
+                    instruments = insights.get(instruments_field, [])
+                    if instruments and len(instruments) > 0:
+                        print(f"    {instruments_field.upper()}:")
+                        for instrument in instruments:
+                            print(f"      - Instrument: {instrument.get('instrument', 'N/A')}")
+                            print(f"        Rationale: {instrument.get('rationale', 'N/A')}")
+                            print(f"        Type: {instrument.get('type', 'N/A')}")
+                
+                # Print resources
+                resources = insights.get("useful_resources", [])
+                if resources and len(resources) > 0:
+                    print(f"    USEFUL_RESOURCES:")
+                    for resource in resources:
+                        print(f"      - URL: {resource.get('url', 'N/A')}")
+                        print(f"        Description: {resource.get('description', 'N/A')}")
         
         # Ask if the user wants to see the full JSON response
         show_full = input("\nDo you want to see the full JSON response? (y/n): ").lower() == 'y'
@@ -332,70 +386,95 @@ def explore_legacy_insights_endpoint():
             print("\nFull response:")
             print(json.dumps(data, indent=4, ensure_ascii=False))
             
+        return data
+            
     except requests.exceptions.RequestException as e:
-        print(f"Error accessing /insights: {e}")
+        print(f"Error fetching insights: {e}")
         if hasattr(e, 'response') and e.response:
-            print(f"Response status code: {e.response.status_code}")
             try:
                 error_data = e.response.json()
-                print(f"Response body: {json.dumps(error_data, indent=4)}")
-            except json.JSONDecodeError:
-                print(f"Could not decode error response: {e.response.text}")
-        else:
-            print(f"No response received.")
-    except json.JSONDecodeError:
-        print("Error decoding JSON response from /insights (GET)")
+                print(f"Server error: {error_data.get('error', 'Unknown error')}")
+            except:
+                print(f"Response status code: {e.response.status_code}")
+                print(f"Response text: {e.response.text}")
+        return None
 
 def simulate_frontend_flow():
     """Simulates the typical flow of API calls made by the frontend using the new separated endpoints."""
-    print("\n--- Simulating Frontend Flow (New Separated Endpoints) ---")
+    print("\n--- Simulating Frontend API Flow ---")
+    print("This will simulate how the frontend interacts with the API endpoints.")
     
-    # Step 1: Load sources
-    print("\nStep 1: Fetching sources (this populates the source selection UI)")
-    url = f"{BASE_URL}/sources"
+    # Step 1: Check available sources
+    print("\nStep 1: Fetching available sources...")
     try:
-        response = requests.get(url)
+        sources_url = f"{BASE_URL}/sources"
+        response = requests.get(sources_url)
         response.raise_for_status()
         sources_data = response.json()
         
-        # Extract sources from the response
-        all_sources = []
-        if "sources" in sources_data:
-            for category, sources in sources_data["sources"].items():
-                for source in sources:
-                    all_sources.append(source["url"])
+        categorized_sources = sources_data.get("sources", {})
+        source_count = sum(len(sources) for sources in categorized_sources.values())
+        print(f"Found {source_count} sources in {len(categorized_sources)} categories")
         
-        print(f"Found {len(all_sources)} sources across all categories")
+        # Select a random category and source
+        if categorized_sources:
+            categories = list(categorized_sources.keys())
+            selected_category = random.choice(categories)
+            sources_in_category = categorized_sources[selected_category]
+            
+            if sources_in_category:
+                selected_source = random.choice(sources_in_category)
+                source_url = selected_source.get("url")
+                source_name = selected_source.get("name")
+                print(f"Selected source: {source_name} ({source_url})")
+            else:
+                print("No sources available in the selected category")
+                source_url = None
+        else:
+            print("No sources available")
+            source_url = None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching sources: {e}")
+        source_url = None
+    
+    # Step 2: Generate summaries
+    print("\nStep 2: Generating summaries...")
+    try:
+        # Build query parameters - use 1d period and selected source if available
+        period = "1d"
+        query_params = f"period={period}"
+        if source_url:
+            query_params += f"&sources={source_url}"
         
-        # Step 2: Select sources and time period (simulating user input)
-        print("\nStep 2: Selecting sources and time period (simulating user input)")
-        selected_period = "1d"
-        
-        # Select up to 3 sources if available
-        selected_sources = all_sources[:min(3, len(all_sources))]
-        print(f"Selected period: {selected_period}")
-        print(f"Selected sources: {selected_sources}")
-        
-        # Step 3: Fetch summaries
-        print("\nStep 3: Fetching summaries based on selected parameters")
-        query_params = {
-            "period": selected_period
-        }
-        if selected_sources:
-            query_params["sources"] = ",".join(selected_sources)
-        
-        summaries_url = f"{BASE_URL}/summaries"
-        response = requests.get(summaries_url, params=query_params)
+        print(f"Fetching summaries with: {query_params}")
+        summaries_url = f"{BASE_URL}/summaries?{query_params}"
+        response = requests.get(summaries_url)
         response.raise_for_status()
         summaries_data = response.json()
         
         topics = summaries_data.get("topics", [])
-        print(f"Received {len(topics)} topic summaries")
+        print(f"Received {len(topics)} topics")
         
-        # Step 4: Send summaries to get insights
-        print("\nStep 4: Sending summaries to get insights")
+        if not topics:
+            print("No topics found. Cannot continue flow simulation.")
+            return
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching summaries: {e}")
+        return
+    
+    # Step 3: Generate insights for the first topic
+    print("\nStep 3: Generating insights for the first topic...")
+    try:
+        first_topic = topics[0]
+        print(f"Selected topic: {first_topic.get('topic', 'Unknown')}")
+        
+        # Create a request with just the first topic
+        insights_request = {"topics": [first_topic]}
+        
         insights_url = f"{BASE_URL}/insights"
-        response = requests.post(insights_url, json=summaries_data)
+        response = requests.post(insights_url, json=insights_request)
         response.raise_for_status()
         insights_data = response.json()
         
@@ -413,13 +492,23 @@ def simulate_frontend_flow():
             insights = first_topic.get("insights", {})
             if insights:
                 print("\nInsights available:")
-                for key in insights:
-                    if key == "exec_options_long" or key == "exec_options_short":
-                        options = insights[key]
-                        if options:
-                            print(f"  {key}: {len(options)} options")
-                    else:
-                        print(f"  - {key}")
+                # Display stance and main insight
+                if insights.get("stance"):
+                    print(f"  - Stance: {insights['stance']}")
+                
+                if insights.get("analysis_summary"):
+                    print(f"  - Analysis Summary available")
+                    
+                for field in ["rationale_long", "rationale_short", "rationale_neutral"]:
+                    if insights.get(field):
+                        print(f"  - {field} available")
+                
+                # Print counts for array fields
+                for field in ["risks_and_watchouts", "key_questions_for_user", "suggested_instruments_long", 
+                             "suggested_instruments_short", "useful_resources"]:
+                    items = insights.get(field, [])
+                    if items:
+                        print(f"  - {field}: {len(items)} items")
         
         print("\nNew separated endpoints flow simulation completed successfully")
             
@@ -427,6 +516,12 @@ def simulate_frontend_flow():
         print(f"Error during frontend flow simulation: {e}")
         if hasattr(e, 'response') and e.response:
             print(f"Response status code: {e.response.status_code}")
+            try:
+                error_data = e.response.json()
+                print(f"Response error: {error_data.get('error', 'Unknown error')}")
+            except:
+                print(f"Response text: {e.response.text}")
+        return
 
 def simulate_legacy_frontend_flow():
     """Simulates the typical flow of API calls made by the frontend using the legacy endpoint."""

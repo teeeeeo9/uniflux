@@ -32,6 +32,37 @@ const formatMessageText = (text) => {
   return formatted;
 };
 
+// Helper function to check if a value is empty (used to hide empty fields)
+const isEmpty = (value) => {
+  if (value === null || value === undefined) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') return Object.keys(value).length === 0;
+  return false;
+};
+
+// Helper function to get stance badge styling
+const getStanceBadge = (stance) => {
+  if (!stance) return { className: 'stance-badge neutral', label: 'No Stance' };
+  
+  switch(stance.toLowerCase()) {
+    case 'long':
+      return { className: 'stance-badge long', label: 'Long' };
+    case 'short':
+      return { className: 'stance-badge short', label: 'Short' };
+    case 'long-neutral':
+      return { className: 'stance-badge long-neutral', label: 'Long-Neutral' };
+    case 'short-neutral':
+      return { className: 'stance-badge short-neutral', label: 'Short-Neutral' };
+    case 'neutral':
+      return { className: 'stance-badge neutral', label: 'Neutral' };
+    case 'no actionable insight':
+      return { className: 'stance-badge no-insight', label: 'No Actionable Insight' };
+    default:
+      return { className: 'stance-badge neutral', label: stance };
+  }
+};
+
 const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsights }, ref) => {
   const [activeTab, setActiveTab] = useState('messages');
   const [messageContents, setMessageContents] = useState({});
@@ -262,36 +293,114 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
             <h3 className="content-subtitle">Insights & Analysis</h3>
             {hasInsights && topic.insights ? (
               <div className="insights-content">
-                <div className="insight-block">
-                  <h4 className="insight-title">General</h4>
-                  <p className="insight-text">{topic.insights.general || 'No general insights available.'}</p>
+                {/* Analysis Summary and Stance */}
+                {!isEmpty(topic.insights.analysis_summary) && (
+                  <div className="insight-block insight-summary">
+                    <h4 className="insight-title">Analysis Summary</h4>
+                    <p className="insight-text">{topic.insights.analysis_summary}</p>
+                    
+                    {!isEmpty(topic.insights.stance) && (
+                      <div className="stance-container">
+                        <span className="stance-label">Stance:</span>
+                        <span className={getStanceBadge(topic.insights.stance).className}>
+                          {getStanceBadge(topic.insights.stance).label}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Rationales - only show non-empty sections */}
+                <div className="rationales-container">
+                  {!isEmpty(topic.insights.rationale_long) && (
+                    <div className="insight-block rationale-block rationale-long">
+                      <h4 className="insight-title">Long Thesis</h4>
+                      <p className="insight-text">{topic.insights.rationale_long}</p>
+                    </div>
+                  )}
+                  
+                  {!isEmpty(topic.insights.rationale_short) && (
+                    <div className="insight-block rationale-block rationale-short">
+                      <h4 className="insight-title">Short Thesis</h4>
+                      <p className="insight-text">{topic.insights.rationale_short}</p>
+                    </div>
+                  )}
+                  
+                  {!isEmpty(topic.insights.rationale_neutral) && (
+                    <div className="insight-block rationale-block rationale-neutral">
+                      <h4 className="insight-title">Neutral Assessment</h4>
+                      <p className="insight-text">{topic.insights.rationale_neutral}</p>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="insight-block">
-                  <h4 className="insight-title">Long-term Perspective</h4>
-                  <p className="insight-text">{topic.insights.long || 'No long-term insights available.'}</p>
-                </div>
+                {/* Risks and Watchouts */}
+                {!isEmpty(topic.insights.risks_and_watchouts) && (
+                  <div className="insight-block risks-block">
+                    <h4 className="insight-title">Risks & Watchouts</h4>
+                    <ul className="risks-list">
+                      {topic.insights.risks_and_watchouts.map((risk, idx) => (
+                        <li key={idx} className="risk-item">{risk}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
-                <div className="insight-block">
-                  <h4 className="insight-title">Short-term Perspective</h4>
-                  <p className="insight-text">{topic.insights.short || 'No short-term insights available.'}</p>
-                </div>
+                {/* Key Questions */}
+                {!isEmpty(topic.insights.key_questions_for_user) && (
+                  <div className="insight-block questions-block">
+                    <h4 className="insight-title">Key Questions for Research</h4>
+                    <ul className="questions-list">
+                      {topic.insights.key_questions_for_user.map((question, idx) => (
+                        <li key={idx} className="question-item">{question}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
-                <div className="insight-block">
-                  <h4 className="insight-title">Neutral Perspective</h4>
-                  <p className="insight-text">{topic.insights.neutral || 'No neutral insights available.'}</p>
-                </div>
-
-                {/* Execution options section moved to insights tab */}
-                {topic.insights && topic.insights.exec_options_long && topic.insights.exec_options_long.length > 0 && (
-                  <div className="insight-block execution-block">
-                    <h4 className="insight-title">Execution Options</h4>
-                    <div className="execution-options">
-                      {topic.insights.exec_options_long.map((option, idx) => (
-                        <div key={idx} className="execution-option">
-                          <h5 className="option-title">{option.text}</h5>
-                          <p className="option-description">{option.description}</p>
-                          <span className="option-type">{option.type}</span>
+                {/* Suggested Instruments - Long */}
+                {!isEmpty(topic.insights.suggested_instruments_long) && (
+                  <div className="insight-block instruments-block long-instruments">
+                    <h4 className="insight-title">Long Execution Options</h4>
+                    <div className="instruments-grid">
+                      {topic.insights.suggested_instruments_long.map((instrument, idx) => (
+                        <div key={idx} className="instrument-card">
+                          <h5 className="instrument-name">{instrument.instrument}</h5>
+                          <p className="instrument-rationale">{instrument.rationale}</p>
+                          <span className="instrument-type">{instrument.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Suggested Instruments - Short */}
+                {!isEmpty(topic.insights.suggested_instruments_short) && (
+                  <div className="insight-block instruments-block short-instruments">
+                    <h4 className="insight-title">Short Execution Options</h4>
+                    <div className="instruments-grid">
+                      {topic.insights.suggested_instruments_short.map((instrument, idx) => (
+                        <div key={idx} className="instrument-card">
+                          <h5 className="instrument-name">{instrument.instrument}</h5>
+                          <p className="instrument-rationale">{instrument.rationale}</p>
+                          <span className="instrument-type">{instrument.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Useful Resources */}
+                {!isEmpty(topic.insights.useful_resources) && (
+                  <div className="insight-block resources-block">
+                    <h4 className="insight-title">Useful Resources</h4>
+                    <div className="resources-list">
+                      {topic.insights.useful_resources.map((resource, idx) => (
+                        <div key={idx} className="resource-item">
+                          <a href={resource.url} target="_blank" rel="noopener noreferrer" className="resource-link">
+                            {resource.url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                          </a>
+                          <p className="resource-description">{resource.description}</p>
                         </div>
                       ))}
                     </div>
