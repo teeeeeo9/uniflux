@@ -314,7 +314,17 @@ async def get_insights():
         
         # Generate insights for each topic with direct await
         logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topic(s)")
-        topics_with_insights = await generate_insights(summaries)
+        
+        # Create a fresh event loop for this request
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Generate insights in the new event loop
+            topics_with_insights = await generate_insights(summaries)
+        finally:
+            # Don't close the loop here - this can cause issues with subsequent calls
+            pass
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated insights for {len(topics_with_insights)} topic(s)")

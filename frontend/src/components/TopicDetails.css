@@ -301,6 +301,37 @@
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
 }
 
+/* Highlight animation for insights button */
+@keyframes pulse-highlight {
+  0% { transform: scale(1); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); }
+  50% { transform: scale(1.05); box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3); }
+  100% { transform: scale(1); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); }
+}
+
+.highlight-button {
+  animation: pulse-highlight 1s ease-in-out;
+  background: linear-gradient(135deg, var(--color-secondary), var(--color-primary));
+}
+
+/* Processing state for insights button */
+@keyframes processing-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.button-processing {
+  animation: processing-pulse 1.5s infinite ease-in-out;
+  pointer-events: none;
+  position: relative;
+}
+
+.button-processing::after {
+  content: "...";
+  position: absolute;
+  right: 10px;
+}
+
 .insight-hint {
   margin-top: 10px;
   color: var(--text-secondary);

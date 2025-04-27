@@ -88,18 +88,18 @@ function App() {
   const fetchInsights = async () => {
     if (!summaries || !summaries.topics || summaries.topics.length === 0) {
       setError('No summaries available to generate insights.');
-      return;
+      return null;
     }
 
     if (selectedTopicIndex === null) {
       setError('No topic selected. Please select a topic to generate insights.');
-      return;
+      return null;
     }
 
     const selectedTopic = summaries.topics[selectedTopicIndex];
     if (!selectedTopic) {
       setError('Selected topic not found.');
-      return;
+      return null;
     }
 
     setLoading(true);
@@ -138,6 +138,8 @@ function App() {
       const insightsData = await insightsResponse.json();
       console.log('Insights response:', insightsData);
       
+      let resultData = insightsData;
+      
       // Set the insights data - merge with existing topics if we already have some
       if (insights && insights.topics) {
         // Create a map of existing insights by topic
@@ -153,14 +155,16 @@ function App() {
           
           // Force a re-render by creating a new array
           const updatedTopics = Array.from(topicMap.values());
-          setInsights({ topics: updatedTopics });
+          resultData = { topics: updatedTopics };
+          setInsights(resultData);
         }
       } else {
         // First insight
         setInsights(insightsData);
       }
       
-      return insightsData; // Return the insights data for potential use by caller
+      // Ensure we return a valid result object for the calling component to use
+      return resultData;
     } catch (err) {
       console.error('Error fetching insights:', err);
       setError(err.message || 'An error occurred while generating insights');

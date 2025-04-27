@@ -66,10 +66,39 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
   };
 
   // Function to handle generating insights
-  const handleGenerateInsights = async () => {
+  const handleGenerateInsights = async (e) => {
+    // Ensure the event doesn't bubble up or trigger other actions
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (onGenerateInsights) {
-      // Call the generate insights function
-      await onGenerateInsights();
+      try {
+        // Add a visual feedback class to indicate the button is active
+        const button = e?.target?.closest('.generate-insights-button');
+        if (button) {
+          button.classList.add('button-processing');
+          button.disabled = true;
+        }
+        
+        // Call the generate insights function
+        const result = await onGenerateInsights();
+        
+        // If successful, switch to the insights tab
+        if (result && result.topics && result.topics.length > 0) {
+          setActiveTab('insights');
+        }
+      } catch (error) {
+        console.error('Error generating insights:', error);
+      } finally {
+        // Remove the visual feedback
+        const button = e?.target?.closest('.generate-insights-button');
+        if (button) {
+          button.classList.remove('button-processing');
+          button.disabled = false;
+        }
+      }
     }
   };
 

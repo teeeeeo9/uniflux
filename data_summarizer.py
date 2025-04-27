@@ -358,6 +358,18 @@ async def generate_insights(summary_data):
     """
     logger.info(f"[INSIGHTS_START] Generating insights for {len(summary_data)} topics")
     
+    # Ensure we have a valid event loop at the start
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            logger.debug("[INSIGHTS_LOOP] Event loop was closed, creating a new one")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+    except RuntimeError:
+        logger.debug("[INSIGHTS_LOOP] No event loop found, creating a new one")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
     insights_prompt_template = INSTRUCTIONS["financial_insights"]
     enhanced_summaries = []
     
@@ -374,9 +386,17 @@ async def generate_insights(summary_data):
             prompt = insights_prompt_template.format(summary=topic_summary)
             logger.debug(f"[INSIGHTS_PROMPT_{i+1}] Created prompt with length: {len(prompt)}")
             
-            # Use Gemini to generate insights
+            # Create a fresh client for this request to avoid connection issues
+            try:
+                request_client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+                logger.debug(f"[INSIGHTS_CLIENT_{i+1}] Created fresh Gemini client")
+            except Exception as client_error:
+                logger.error(f"[INSIGHTS_CLIENT_ERROR_{i+1}] Failed to create Gemini client: {client_error}")
+                raise
+            
+            # Use Gemini to generate insights with the fresh client
             logger.debug(f"[INSIGHTS_API_CALL_{i+1}] Calling Gemini API with model: {GEMINI_MODEL_INSIGHTS}")
-            response = await client.aio.models.generate_content(
+            response = await request_client.aio.models.generate_content(
                 model=GEMINI_MODEL_INSIGHTS, contents=prompt
             )
             logger.debug(f"[INSIGHTS_API_RESPONSE_{i+1}] Received response from Gemini API")

@@ -411,30 +411,31 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
     return 'small-square';
   };
 
-  // Get appropriate summary length based on tile size
-  const getSummaryLength = (width, height) => {
-    const area = width * height;
-    if (area >= 9) return 300; // 3×3
-    if (area >= 8) return 250; // 4×2
-    if (area >= 6) return 220; // 3×2
-    if (area === 4) return 180; // 2×2
-    if (area === 3) return 150; // 3×1, 1×3
-    if (area === 2) return 100; // 2×1, 1×2
-    return 70; // 1×1
-  };
-  
   // Handle the scroll to messages section
   const scrollToMessages = (e, index) => {
-    e.stopPropagation(); // Prevent triggering the tile click
+    // Completely stop event propagation to all parent elements
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // First select the topic
     onSelectTopic(index);
     
-    // Add a small delay to ensure the topic details have rendered
+    // Add a longer delay to ensure the topic details have fully rendered
     setTimeout(() => {
       const messagesSection = document.querySelector('.messages-section');
       if (messagesSection) {
         messagesSection.scrollIntoView({ behavior: 'smooth' });
+        
+        // Find the insights button and highlight it briefly to guide the user
+        const insightsButton = document.querySelector('.generate-insights-button');
+        if (insightsButton) {
+          insightsButton.classList.add('highlight-button');
+          setTimeout(() => {
+            insightsButton.classList.remove('highlight-button');
+          }, 1000);
+        }
       }
-    }, 100);
+    }, 250); // Increase timeout to ensure DOM is ready
   };
 
   // Now add the conditional return after all hooks are defined
@@ -494,7 +495,12 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
                 {showInsights && topic.insights ? (
                   <div className="tile-insights-indicator">Has insights</div>
                 ) : (
-                  <p className="tile-summary">{truncateSummary(topic.summary, getSummaryLength(width, height))}</p>
+                  <p 
+                    className="tile-summary"
+                    onClick={(e) => scrollToMessages(e, actualIndex)}  
+                  >
+                    {topic.summary}
+                  </p>
                 )}
                 
                 <div className="tile-footer">
@@ -558,9 +564,8 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
 
 // Helper function to truncate summary
 function truncateSummary(summary, maxLength) {
-  if (!summary) return '';
-  if (summary.length <= maxLength) return summary;
-  return summary.substring(0, maxLength) + '...';
+  // No longer needed as we're displaying the full summary with scroll
+  return summary || '';
 }
 
 export default SummariesMosaic; 
