@@ -384,6 +384,52 @@ async def get_sources():
         logger.error(traceback.format_exc())
         return jsonify({"error": error_message}), 500
 
+@app.route('/message/<int:message_id>', methods=['GET'])
+async def get_message(message_id):
+    """
+    API endpoint to retrieve a specific message by its ID.
+    
+    Parameters:
+        message_id: The ID of the message to retrieve
+        
+    Returns:
+        A JSON object with the message content, source, and date
+    """
+    try:
+        # Ensure we have a valid event loop
+        ensure_event_loop()
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT m.id, m.data, m.date, m.source_url, 
+                       COALESCE(s.name, m.source_url) as source_name
+                FROM messages m
+                LEFT JOIN sources s ON m.source_url = s.url
+                WHERE m.id = ?
+                """, 
+                (message_id,)
+            )
+            
+            message = cursor.fetchone()
+            
+            if not message:
+                return jsonify({"error": f"Message with ID {message_id} not found"}), 404
+            
+            return jsonify({
+                "id": message['id'],
+                "content": message['data'],
+                "date": message['date'],
+                "source": message['source_name'] or message['source_url']
+            }), 200
+            
+    except Exception as e:
+        error_message = f"Error retrieving message: {str(e)}"
+        logger.error(error_message)
+        logger.error(traceback.format_exc())
+        return jsonify({"error": error_message}), 500
+
 @app.route('/insights', methods=['GET'])
 async def get_insights_legacy():
     """

@@ -149,6 +149,57 @@
   backdrop-filter: blur(8px);
 }
 
+/* Disabled feature styling */
+.disabled-feature {
+  position: relative;
+  background-color: rgba(230, 230, 235, 0.3);
+  border: 1px dashed rgba(100, 100, 115, 0.3);
+}
+
+.premium-badge {
+  display: inline-block;
+  background-color: #8b5cf6;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+}
+
+.subscription-message {
+  padding: 1rem;
+  text-align: center;
+}
+
+.subscription-message p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.upgrade-button {
+  background-color: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.upgrade-button:hover:not(:disabled) {
+  background-color: #7c3aed;
+}
+
+.upgrade-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .category-header {
   background-color: #f1f5f9;
   padding: 0.5rem 0.75rem;

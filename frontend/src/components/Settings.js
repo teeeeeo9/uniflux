@@ -191,7 +191,7 @@ const Settings = ({ onFetchSummaries }) => {
           >
             <option value="1d">Last 24 hours</option>
             <option value="2d">Last 2 days</option>
-            <option value="1w">Last week</option>
+            {/* <option value="1w">Last week</option> */}
           </select>
         </div>
       </div>
@@ -246,35 +246,44 @@ const Settings = ({ onFetchSummaries }) => {
               ))
             )}
 
-            {/* Custom Sources section as a category block */}
-            <div className="source-category-block">
+            {/* Custom Sources section as a category block - disabled for non-subscribers */}
+            <div className="source-category-block disabled-feature">
               <div className="category-header">
                 <h3>Custom Sources</h3>
+                <span className="premium-badge">PRO</span>
               </div>
               <div className="source-list-container-grid">
-                {customSources.map((source, index) => (
-                  <div key={index} className="source-item custom-source-item">
-                    <div className="custom-source-row">
-                      <input
-                        type="text"
-                        className="custom-source-input"
-                        value={source}
-                        onChange={(e) => handleCustomSourceChange(index, e.target.value)}
-                        onKeyPress={(e) => handleCustomSourceKeyPress(e, index)}
-                        placeholder="Enter source URL"
-                      />
-                      {customSources.length > 1 && source.trim() === '' && (
-                        <button 
-                          type="button" 
-                          className="remove-source-btn"
-                          onClick={() => removeCustomSource(index)}
-                        >
-                          ×
-                        </button>
-                      )}
+                <div className="custom-source-item subscription-message">
+                  <p>Add your own custom news sources with our subscription plan.</p>
+                  <button className="upgrade-button" type="button" disabled>
+                    Subscribe to unlock
+                  </button>
+                </div>
+                {/* Keep the original inputs but make them disabled */}
+                <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
+                  {customSources.map((source, index) => (
+                    <div key={index} className="source-item custom-source-item">
+                      <div className="custom-source-row">
+                        <input
+                          type="text"
+                          className="custom-source-input"
+                          value={source}
+                          disabled
+                          placeholder="Enter source URL"
+                        />
+                        {customSources.length > 1 && source.trim() === '' && (
+                          <button 
+                            type="button" 
+                            className="remove-source-btn"
+                            disabled
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -286,7 +295,7 @@ const Settings = ({ onFetchSummaries }) => {
             <button 
               type="submit" 
               className="btn btn-primary"
-              disabled={selectedSources.length === 0 && customSources.every(source => source.trim() === '')}
+              disabled={selectedSources.length === 0}
             >
               Generate Summaries
             </button>

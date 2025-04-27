@@ -1,8 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './TopicDetails.css';
 
 const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
   const [activeTab, setActiveTab] = useState('messages');
+  const [messageContents, setMessageContents] = useState({});
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Fetch message contents when topic changes or when messages tab is activated
+  useEffect(() => {
+    if (topic && topic.message_ids && topic.message_ids.length > 0 && activeTab === 'messages') {
+      fetchMessageContents();
+    }
+  }, [topic, activeTab]);
+
+  // Function to fetch message contents from the backend
+  const fetchMessageContents = async () => {
+    if (!topic || !topic.message_ids || topic.message_ids.length === 0) return;
+
+    setLoadingMessages(true);
+    
+    try {
+      // Fetch each message content
+      const contents = {};
+      
+      // Create promises for all message fetch operations
+      const fetchPromises = topic.message_ids.map(async (messageId) => {
+        try {
+          const response = await fetch(`/message/${messageId}`);
+          if (response.ok) {
+            const data = await response.json();
+            contents[messageId] = data;
+          } else {
+            contents[messageId] = { error: 'Failed to fetch message' };
+          }
+        } catch (error) {
+          console.error(`Error fetching message ${messageId}:`, error);
+          contents[messageId] = { error: 'Error fetching message' };
+        }
+      });
+      
+      // Wait for all fetches to complete
+      await Promise.all(fetchPromises);
+      
+      setMessageContents(contents);
+    } catch (error) {
+      console.error('Error fetching message contents:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   if (!topic) {
     return null;
@@ -69,19 +115,36 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
             <h3 className="content-subtitle">Original Messages</h3>
             {topic.message_ids && topic.message_ids.length > 0 ? (
               <>
-                <div className="message-list">
-                  {topic.message_ids.map((messageId, idx) => (
-                    <div key={idx} className="message-item">
-                      <div className="message-header">
-                        <span className="message-id">Message #{messageId}</span>
-                        <span className="message-channel">Channel: Unknown</span>
-                      </div>
-                      <p className="message-text">
-                        Message content will be displayed here when available.
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                {loadingMessages ? (
+                  <div className="messages-loading">Loading message contents...</div>
+                ) : (
+                  <div className="message-list">
+                    {topic.message_ids.map((messageId, idx) => {
+                      const messageContent = messageContents[messageId];
+                      
+                      return (
+                        <div key={idx} className="message-item">
+                          <div className="message-header">
+                            <span className="message-source">
+                              Source: {messageContent?.source || 'Unknown'}
+                            </span>
+                            {messageContent?.date && (
+                              <span className="message-date">
+                                {new Date(messageContent.date).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="message-text">
+                            {messageContent?.content || 
+                             (messageContent?.error ? 
+                              `Error: ${messageContent.error}` : 
+                              'Fetching message content...')}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 
                 {!hasInsights && (
                   <div className="insight-action-container">
@@ -89,9 +152,6 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
                       <span className="button-icon">✨</span>
                       Discover actionable insights
                     </button>
-                    {/* <p className="insight-hint">
-                      Click to get actionable insights based on these messages
-                    </p> */}
                   </div>
                 )}
               </>

@@ -23,10 +23,13 @@ function App() {
     
     // Scroll down to show the loading indicator
     setTimeout(() => {
-      window.scrollTo({
-        top: document.querySelector('.loading').getBoundingClientRect().top + window.pageYOffset - 100,
-        behavior: 'smooth'
-      });
+      const loadingElement = document.querySelector('.loading');
+      if (loadingElement) {
+        window.scrollTo({
+          top: loadingElement.getBoundingClientRect().top + window.pageYOffset - 100,
+          behavior: 'smooth'
+        });
+      }
     }, 100);
     
     try {

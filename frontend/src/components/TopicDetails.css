@@ -139,6 +139,27 @@
   color: var(--text-secondary);
 }
 
+/* Updated/added styles for messages */
+.message-source {
+  font-weight: 500;
+  color: var(--color-primary);
+  background-color: rgba(var(--color-primary-rgb, 33, 150, 243), 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  display: inline-block;
+}
+
+.message-date {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.messages-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+}
+
 .message-text {
   font-size: 0.9375rem;
   margin: 0;
