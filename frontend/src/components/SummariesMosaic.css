@@ -240,6 +240,29 @@
   margin-top: 0.25rem;
 }
 
+.tile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.tile-has-insights {
+  font-size: 0.65rem;
+  background-color: rgba(121, 82, 179, 0.25);
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+}
+
+.tile-has-insights::before {
+  content: "✨";
+  margin-right: 0.25rem;
+}
+
 .tile-summary {
   font-size: 0.75rem;
   line-height: 1.3;
@@ -247,7 +270,7 @@
   flex-grow: 1;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   opacity: 0.9;
 }

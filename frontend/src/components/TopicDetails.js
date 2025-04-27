@@ -12,6 +12,13 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
       fetchMessageContents();
     }
   }, [topic, activeTab]);
+  
+  // Switch to insights tab when insights become available
+  useEffect(() => {
+    if (hasInsights && topic && topic.insights) {
+      setActiveTab('insights');
+    }
+  }, [hasInsights, topic]);
 
   // Function to fetch message contents from the backend
   const fetchMessageContents = async () => {
@@ -58,9 +65,11 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
     setActiveTab(tab);
   };
 
-  const handleGenerateInsights = () => {
+  // Function to handle generating insights
+  const handleGenerateInsights = async () => {
     if (onGenerateInsights) {
-      onGenerateInsights();
+      // Call the generate insights function
+      await onGenerateInsights();
     }
   };
 
@@ -96,7 +105,7 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
         <button 
           className={`tab-button ${activeTab === 'insights' ? 'active' : ''}`}
           onClick={() => handleTabChange('insights')}
-          disabled={!hasInsights || !topic.insights}
+          disabled={!hasInsights && !onGenerateInsights}
         >
           Insights & Analysis
         </button>
@@ -146,7 +155,7 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
                   </div>
                 )}
                 
-                {!hasInsights && (
+                {onGenerateInsights && (
                   <div className="insight-action-container">
                     <button className="generate-insights-button" onClick={handleGenerateInsights}>
                       <span className="button-icon">✨</span>
@@ -187,11 +196,7 @@ const TopicDetails = ({ topic, hasInsights = false, onGenerateInsights }) => {
                 </div>
               </div>
             ) : (
-              <p className="no-content">
-                {hasInsights 
-                  ? 'No insights available for this topic.' 
-                  : 'Generate insights first to see analysis for this topic.'}
-              </p>
+              <p className="no-content">No insights available for this topic yet. Please use the "Discover actionable insights" button in the Original Messages tab.</p>
             )}
           </div>
         )}

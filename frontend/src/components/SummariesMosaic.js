@@ -481,9 +481,14 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
               <div className="tile-content">
                 <div className="tile-header">
                   <h4 className="tile-title">{topic.topic}</h4>
-                  {topic.metatopic && (
-                    <span className="tile-metatopic">{topic.metatopic}</span>
-                  )}
+                  <div className="tile-badges">
+                    {topic.metatopic && (
+                      <span className="tile-metatopic">{topic.metatopic}</span>
+                    )}
+                    {topic.hasGeneratedInsights && (
+                      <span className="tile-has-insights">Insights Available</span>
+                    )}
+                  </div>
                 </div>
                 
                 {showInsights && topic.insights ? (

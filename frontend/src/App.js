@@ -150,17 +150,21 @@ function App() {
         if (insightsData.topics && insightsData.topics.length > 0) {
           const newTopic = insightsData.topics[0];
           topicMap.set(newTopic.topic, newTopic);
+          
+          // Force a re-render by creating a new array
+          const updatedTopics = Array.from(topicMap.values());
+          setInsights({ topics: updatedTopics });
         }
-
-        // Convert map back to array
-        setInsights({ topics: Array.from(topicMap.values()) });
       } else {
         // First insight
         setInsights(insightsData);
       }
+      
+      return insightsData; // Return the insights data for potential use by caller
     } catch (err) {
       console.error('Error fetching insights:', err);
       setError(err.message || 'An error occurred while generating insights');
+      return null;
     } finally {
       setLoading(false);
       setLoadingStep(null);
@@ -172,17 +176,27 @@ function App() {
   };
 
   // Get the selected topic if one is selected
-  const selectedTopic = insights && 
-    insights.topics && 
-    selectedTopicIndex !== null ? 
-    insights.topics[selectedTopicIndex] : 
-    summaries && 
-    summaries.topics && 
-    selectedTopicIndex !== null ? 
-    summaries.topics[selectedTopicIndex] : null;
+  const selectedTopic = selectedTopicIndex !== null ? (
+    // Check if the topic has insights first
+    (insights?.topics && 
+      insights.topics.find(topic => {
+        // Find matching topic by name in insights
+        const summaryTopic = summaries?.topics?.[selectedTopicIndex];
+        return summaryTopic && topic.topic === summaryTopic.topic;
+      })) || 
+    // Fall back to the summary topic if no insights
+    (summaries?.topics?.[selectedTopicIndex])
+  ) : null;
 
-  // Determine if we have topics to display (either from summaries or insights)
-  const displayTopics = insights?.topics || summaries?.topics || [];
+  // Check if the selected topic has insights
+  const hasInsights = !!(
+    insights?.topics && 
+    selectedTopic && 
+    insights.topics.some(topic => topic.topic === selectedTopic.topic && topic.insights)
+  );
+
+  // Determine if we should enable the generate insights button
+  const showGenerateInsightsButton = !!selectedTopic && !hasInsights;
 
   return (
     <div className="app">
@@ -225,25 +239,15 @@ function App() {
             </div>
             
             <SummariesMosaic 
-              topics={summaries.topics} 
+              topics={summaries.topics.map(topic => {
+                // If there's a matching topic with insights, add a flag to indicate it has insights
+                if (insights?.topics && insights.topics.some(t => t.topic === topic.topic && t.insights)) {
+                  return { ...topic, hasGeneratedInsights: true };
+                }
+                return topic;
+              })}
               onSelectTopic={handleSelectTopic}
               selectedTopicId={selectedTopicIndex}
-            />
-          </div>
-        )}
-        
-        {/* Insights Section */}
-        {!loading && !error && insights && insights.topics && insights.topics.length > 0 && (
-          <div className="app-section insights-section-container">
-            <div className="section-header">
-              <h2 className="section-title">Generated Insights</h2>
-            </div>
-            
-            <SummariesMosaic 
-              topics={insights.topics} 
-              onSelectTopic={handleSelectTopic}
-              selectedTopicId={selectedTopicIndex}
-              showInsights={true}
             />
           </div>
         )}
@@ -253,8 +257,8 @@ function App() {
           <div className="app-section details-section-container">
             <TopicDetails 
               topic={selectedTopic} 
-              hasInsights={!!insights} 
-              onGenerateInsights={!insights ? fetchInsights : undefined}
+              hasInsights={hasInsights}
+              onGenerateInsights={showGenerateInsightsButton ? fetchInsights : undefined}
             />
           </div>
         )}
