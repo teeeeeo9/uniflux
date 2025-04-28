@@ -398,6 +398,39 @@ def get_latest_message_id_for_channel(source_type, channel_id):
         logger.error(traceback.format_exc())
         return None
 
+def get_latest_timestamp_for_channel(source_type, channel_id):
+    """
+    Get the latest timestamp for a given channel from the database.
+    
+    Args:
+        source_type: The type of source (e.g., 'telegram', 'rss')
+        channel_id: The channel identifier
+        
+    Returns:
+        The latest timestamp as a datetime object or None if no messages are found
+    """
+    logger.debug(f"Getting latest timestamp for channel: {source_type}, {channel_id}")
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT date FROM messages WHERE source_type = ? AND channel_id = ? ORDER BY date DESC LIMIT 1",
+                (source_type, channel_id)
+            )
+            result = cursor.fetchone()
+            if result:
+                date_str = result['date']
+                latest_timestamp = datetime.fromisoformat(date_str)
+                logger.info(f"Latest timestamp for {source_type} channel {channel_id}: {latest_timestamp.isoformat()}")
+                return latest_timestamp
+            else:
+                logger.info(f"No previous messages found for {source_type} channel {channel_id}")
+                return None
+    except Exception as e:
+        logger.error(f"Error getting latest timestamp: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
 def save_message_to_db(message_data):
     """
     Save a message to the database.
@@ -505,19 +538,26 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             logger.debug(f'Entity for {channel_identifier}: {entity}')
             
             if entity:
-                # Get the latest message ID from the database for this channel
-                latest_message_id = get_latest_message_id_for_channel("telegram", channel_identifier)
+                # Get the latest timestamp from the database for this channel
+                latest_timestamp = get_latest_timestamp_for_channel("telegram", channel_identifier)
                 
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
                 
-                if latest_message_id:
-                    logger.info(f'Found previous messages for this channel. Latest message ID: {latest_message_id}')
-                    # Fetch messages with ID > latest_message_id
+                if latest_timestamp:
+                    logger.info(f'Found previous messages for this channel. Latest timestamp: {latest_timestamp.isoformat()}')
+                    # Use the latest timestamp or the time_range, whichever is more recent
+                    effective_since_date = max(latest_timestamp, since_date_utc)
+                    logger.info(f'Using effective since date: {effective_since_date.isoformat()}')
+                    
+                    # Also get the latest message ID as a fallback
+                    latest_message_id = get_latest_message_id_for_channel("telegram", channel_identifier)
+                    
+                    # Fetch messages since the latest timestamp with ID > latest_message_id
                     messages = await fetch_channel_messages_since(
-                        client, entity, since_date_utc, original_identifier, min_id=latest_message_id
+                        client, entity, effective_since_date, original_identifier, min_id=latest_message_id
                     )
                 else:
-                    logger.info(f'No previous messages found for this channel. Fetching from scratch.')
+                    logger.info(f'No previous messages found for this channel. Fetching from scratch since {since_date_utc.isoformat()}.')
                     # Fetch all messages in the time range
                     messages = await fetch_channel_messages_since(client, entity, since_date_utc, original_identifier)
                 
@@ -533,7 +573,15 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                     current_message += 1
                     logger.info(f"[Progress: {current_channel}/{total_channels} channels, {current_message}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
                     
-                    # Check if message already exists in database
+                    # Parse the message date
+                    message_date = datetime.fromisoformat(message['date']) if message['date'] else None
+                    
+                    # Skip messages with dates older than or equal to the latest timestamp
+                    if latest_timestamp and message_date and message_date <= latest_timestamp:
+                        logger.info(f"Skipping message ID {message['message_id']} with date {message_date.isoformat()} as it's not newer than latest timestamp {latest_timestamp.isoformat()}")
+                        continue
+                    
+                    # Double-check if message already exists in database by ID
                     exists, msg_id = message_exists_in_db("telegram", message['channel_id'], message['message_id'])
                     
                     if exists:
@@ -847,6 +895,17 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
             logger.warning(f"Could not parse URL into channel ID, using full URL: {e}")
             channel_id = feed_url
         
+        # Get the latest timestamp from the database for this RSS feed
+        latest_timestamp = get_latest_timestamp_for_channel("rss", channel_id)
+        if latest_timestamp:
+            logger.info(f"Found previous entries for {channel_id}. Latest timestamp: {latest_timestamp.isoformat()}")
+            # Use the latest timestamp or the time_range, whichever is more recent
+            effective_since_date = max(latest_timestamp, since_date_utc)
+            logger.info(f"Using effective since date: {effective_since_date.isoformat()}")
+        else:
+            logger.info(f"No previous entries found for {channel_id}. Fetching from scratch since {since_date_utc.isoformat()}")
+            effective_since_date = since_date_utc
+        
         message_ids = []
         
         # Identify repetitive links across all entries by first collecting them
@@ -863,8 +922,8 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                 entry_date = now_utc
                 logger.warning(f"No date found for entry {entry.get('title', 'Untitled')}. Using current time.")
             
-            # Skip entries older than the time range
-            if entry_date < since_date_utc:
+            # Skip entries older than the effective since date
+            if entry_date < effective_since_date:
                 continue
             
             # Create a serialized entry with links
@@ -899,9 +958,9 @@ async def fetch_rss_feed(feed_url, time_range="1d", enable_retries=False, debug_
                 entry_date = now_utc
                 logger.warning(f"No date found for entry {entry.get('title', 'Untitled')}. Using current time.")
             
-            # Skip entries older than the time range
-            if entry_date < since_date_utc:
-                logger.info(f"Skipping entry from {entry_date.isoformat()} as it's outside the time range")
+            # Skip entries older than the effective since date
+            if entry_date < effective_since_date:
+                logger.info(f"Skipping entry from {entry_date.isoformat()} as it's older than effective since date {effective_since_date.isoformat()}")
                 continue
             
             # Extract links from entry (must be done for each entry being processed)
