@@ -26,7 +26,7 @@
 .landing-header {
   background-color: #f9fafb;
   color: var(--text-primary);
-  padding: 2rem 0 4rem;
+  padding: 3rem 0 4rem;
   position: relative;
   overflow: hidden;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
@@ -39,22 +39,22 @@
   margin-bottom: 3rem;
 }
 
-.logo-container {
+.logo-container-landing {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .landing-nav .logo {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  padding: 6px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 120px;
+  height: 120px;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 .landing-nav h1 {
-  font-size: 2.5rem;
+  font-size: 4rem;
   margin: 0;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -115,12 +115,12 @@
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.025em;
-  color: var(--color-primary);
+  color: #000000;
 }
 
 .hero-content h2 .line-break {
   display: block;
-  color: var(--text-primary);
+  color: var(--color-primary);
 }
 
 .hero-content p {
@@ -193,13 +193,14 @@
 .image-animation {
   width: 90%;
   height: 90%;
-  background: white;
+  /* /* background: white; */
+  background: rgba(33, 150, 243, 0); 
   border-radius: 0.75rem;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  /* border: 1px solid rgba(0, 0, 0, 0.05); */
 }
 
 .animation-content {
@@ -234,20 +235,22 @@
 
 /* Main Content */
 .landing-main {
-  padding: 4rem 0;
+  padding: 0rem 0;
 }
 
 /* Steps Section */
 .steps-section {
   padding: 4rem 0;
   text-align: center;
+  background-color: var(--color-primary);
+  color: white;
 }
 
 .steps-section h2 {
   font-size: 2rem;
   margin-bottom: 3rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: white;
 }
 
 .steps-container {
@@ -267,12 +270,13 @@
   box-shadow: var(--shadow-soft);
   cursor: pointer;
   border: 1px solid rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
 }
 
 .step-card.active {
   transform: translateY(-10px);
   box-shadow: var(--shadow-medium);
-  border-color: rgba(33, 150, 243, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .step-number {
@@ -412,8 +416,8 @@
   width: 32px;
   height: 32px;
   background-color: white;
-  border-radius: 50%;
-  padding: 4px;
+  border-radius: 0;
+  padding: 0;
 }
 
 .footer-logo span {
@@ -491,6 +495,15 @@
     max-width: 600px;
     margin: 0 auto;
   }
+  
+  .landing-nav .logo {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .landing-nav h1 {
+    font-size: 2.5rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -525,6 +538,15 @@
   .subscribe-section h2 {
     font-size: 1.75rem;
   }
+  
+  .landing-nav .logo {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .landing-nav h1 {
+    font-size: 2.2rem;
+  }
 }
 
 @media (max-width: 576px) {
@@ -540,5 +562,14 @@
   .primary-button,
   .secondary-button {
     width: 100%;
+  }
+  
+  .landing-nav .logo {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .landing-nav h1 {
+    font-size: 2rem;
   }
 } 

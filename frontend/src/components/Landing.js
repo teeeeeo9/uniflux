@@ -45,7 +45,7 @@ const Landing = () => {
       <header className="landing-header">
         <div className="container">
           <div className="landing-nav">
-            <div className="logo-container">
+            <div className="logo-container-landing">
               <img src={logo} alt="Uniflux Logo" className="logo" />
               <h1>Uniflux</h1>
             </div>
@@ -157,7 +157,7 @@ const Landing = () => {
         <div className="container">
           <div className="footer-content">
             <div className="footer-logo">
-              <img src={logo} alt="Uniflux Logo" className="logo" />
+              {/* <img src={logo} alt="Uniflux Logo" className="logo" /> */}
               <span>Uniflux</span>
             </div>
             <div className="footer-links">
