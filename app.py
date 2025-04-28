@@ -833,4 +833,4 @@ if __name__ == '__main__':
     # Initialize the event loop before starting the app
     ensure_event_loop()
     # Run with threaded=True and a higher thread limit to handle multiple concurrent requests
-    app.run(debug=True, threaded=True, use_reloader=False)  # Disable reloader to avoid event loop issues
+    app.run(host='0.0.0.0', debug=False, threaded=True, use_reloader=False)  # Disable reloader to avoid event loop issues
