@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import './Feedback.css';
 
+// Add API_URL from environment variables
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 const Feedback = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -49,7 +52,7 @@ const Feedback = () => {
     
     try {
       // Send data to backend API
-      const response = await fetch('/feedback', {
+      const response = await fetch(`${API_URL}/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

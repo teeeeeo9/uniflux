@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import './TopicDetails.css';
 
+// Add API_URL from environment variables
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 // Helper function to format message text
 const formatMessageText = (text) => {
   if (!text) return '';
@@ -119,7 +122,7 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
       // Create promises for all message fetch operations
       const fetchPromises = topic.message_ids.map(async (messageId) => {
         try {
-          const response = await fetch(`/message/${messageId}`);
+          const response = await fetch(`${API_URL}/message/${messageId}`);
           if (response.ok) {
             const data = await response.json();
             contents[messageId] = data;

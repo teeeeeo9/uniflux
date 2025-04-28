@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './Settings.css';
 
+// Add API_URL from environment variables
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 const Settings = ({ onFetchSummaries }) => {
   // State for time period
   const [period, setPeriod] = useState('1d');
@@ -30,7 +33,7 @@ const Settings = ({ onFetchSummaries }) => {
       setLoading(true);
       try {
         console.log('Fetching sources from /sources endpoint');
-        const response = await fetch('/sources', {
+        const response = await fetch(`${API_URL}/sources`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -196,7 +199,7 @@ const Settings = ({ onFetchSummaries }) => {
     
     try {
       // Send subscription to backend
-      const response = await fetch('/subscribe', {
+      const response = await fetch(`${API_URL}/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

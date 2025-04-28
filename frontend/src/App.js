@@ -7,6 +7,9 @@ import Subscription from './components/Subscription';
 import logo from './assets/image.png';
 import './App.css';
 
+// Add API_URL from environment variables
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 function App() {
   const [summaries, setSummaries] = useState(null);
   const [insights, setInsights] = useState(null);
@@ -59,10 +62,10 @@ function App() {
         ...(settings.sources.length > 0 && { sources: settings.sources.join(',') })
       }).toString();
 
-      console.log(`Fetching summaries from: /summaries?${queryParams}`);
+      console.log(`Fetching summaries from: ${API_URL}/summaries?${queryParams}`);
       
       // Fetch summaries
-      const summariesResponse = await fetch(`/summaries?${queryParams}`, {
+      const summariesResponse = await fetch(`${API_URL}/summaries?${queryParams}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -130,7 +133,7 @@ function App() {
       console.log(`Fetching insights for topic: ${selectedTopic.topic}`);
       
       // Send the POST request to get insights only for the selected topic
-      const insightsResponse = await fetch('/insights', {
+      const insightsResponse = await fetch(`${API_URL}/insights`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

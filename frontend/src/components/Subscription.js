@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import './Subscription.css';
 
+// Add API_URL from environment variables
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 const Subscription = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -31,7 +34,7 @@ const Subscription = () => {
     
     try {
       // Send subscription to backend
-      const response = await fetch('/subscribe', {
+      const response = await fetch(`${API_URL}/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
