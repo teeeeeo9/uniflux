@@ -12,6 +12,7 @@
 .landing-page {
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #ffffff;
 }
 
 .container {
@@ -23,11 +24,12 @@
 
 /* Header and Navigation */
 .landing-header {
-  background: var(--gradient-primary);
-  color: white;
+  background-color: #f9fafb;
+  color: var(--text-primary);
   padding: 2rem 0 4rem;
   position: relative;
   overflow: hidden;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .landing-nav {
@@ -40,23 +42,23 @@
 .logo-container {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .landing-nav .logo {
-  width: 40px;
-  height: 40px;
-  background-color: white;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   padding: 6px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .landing-nav h1 {
-  font-size: 1.8rem;
+  font-size: 2.5rem;
   margin: 0;
   font-weight: 700;
   letter-spacing: -0.025em;
+  color: var(--color-primary);
 }
 
 .nav-links {
@@ -66,18 +68,18 @@
 }
 
 .app-link {
-  color: white;
+  color: var(--color-primary);
   text-decoration: none;
   font-weight: 500;
   padding: 0.5rem 1rem;
   border-radius: 9999px;
   transition: var(--transition-standard);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--color-primary);
 }
 
 .app-link:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.5);
+  background-color: var(--color-primary);
+  color: white;
   transform: translateY(-2px);
 }
 
@@ -85,17 +87,17 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: white;
+  color: #333;
   text-decoration: none;
   font-weight: 500;
   padding: 0.5rem 1rem;
   border-radius: 9999px;
   transition: var(--transition-standard);
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .github-link:hover {
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
 
@@ -108,11 +110,17 @@
 }
 
 .hero-content h2 {
-  font-size: 2.5rem;
-  margin-bottom: 1.5rem;
-  font-weight: 700;
+  font-size: 3.5rem;
+  margin-bottom: 2rem;
+  font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.025em;
+  color: var(--color-primary);
+}
+
+.hero-content h2 .line-break {
+  display: block;
+  color: var(--text-primary);
 }
 
 .hero-content p {
@@ -129,8 +137,8 @@
 }
 
 .primary-button {
-  background-color: white;
-  color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: white;
   text-decoration: none;
   font-weight: 600;
   padding: 0.875rem 1.75rem;
@@ -143,12 +151,13 @@
 .primary-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  background-color: var(--color-primary-dark);
 }
 
 .secondary-button {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: white;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
   padding: 0.875rem 1.75rem;
   font-weight: 600;
   border-radius: 0.5rem;
@@ -157,7 +166,7 @@
 }
 
 .secondary-button:hover {
-  background-color: rgba(255, 255, 255, 0.25);
+  background-color: rgba(33, 150, 243, 0.05);
   transform: translateY(-2px);
 }
 
@@ -171,7 +180,7 @@
 .image-placeholder {
   width: 100%;
   aspect-ratio: 4/3;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(33, 150, 243, 0.05);
   border-radius: 1rem;
   display: flex;
   justify-content: center;
@@ -184,14 +193,13 @@
 .image-animation {
   width: 90%;
   height: 90%;
-  background: rgba(255, 255, 255, 0.2);
+  background: white;
   border-radius: 0.75rem;
-  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .animation-content {
@@ -251,14 +259,14 @@
 }
 
 .step-card {
-  background: var(--gradient-white);
+  background: white;
   border-radius: 1rem;
   padding: 2rem 1.5rem;
   position: relative;
   transition: var(--transition-standard);
   box-shadow: var(--shadow-soft);
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .step-card.active {
@@ -304,7 +312,7 @@
 /* Benefits Section */
 .benefits-section {
   padding: 4rem 0;
-  background-color: rgba(241, 245, 249, 0.6);
+  background-color: #f9fafb;
   text-align: center;
 }
 
@@ -509,7 +517,7 @@
   }
   
   .hero-content h2 {
-    font-size: 2rem;
+    font-size: 2.5rem;
   }
   
   .steps-section h2,

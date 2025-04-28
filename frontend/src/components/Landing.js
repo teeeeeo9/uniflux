@@ -62,8 +62,10 @@ const Landing = () => {
           
           <div className="hero-section">
             <div className="hero-content">
-              <h2>Simplify Your News Consumption</h2>
-              <p>Uniflux aggregates, summarizes, and provides actionable insights from multiple news sources, helping you make informed decisions faster.</p>
+              <h2>
+                Stop scrolling
+                <span className="line-break">Start seeing</span>
+              </h2>
               <div className="hero-cta">
                 <Link to="/app" className="primary-button">Try Uniflux Now</Link>
                 <button 
