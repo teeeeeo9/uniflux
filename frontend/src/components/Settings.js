@@ -37,7 +37,8 @@ const Settings = ({ onFetchSummaries }) => {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
           }
         });
         
@@ -203,7 +204,8 @@ const Settings = ({ onFetchSummaries }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
           email: email,

@@ -122,7 +122,11 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
       // Create promises for all message fetch operations
       const fetchPromises = topic.message_ids.map(async (messageId) => {
         try {
-          const response = await fetch(`${API_URL}/message/${messageId}`);
+          const response = await fetch(`${API_URL}/message/${messageId}`, {
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
+          });
           if (response.ok) {
             const data = await response.json();
             contents[messageId] = data;
