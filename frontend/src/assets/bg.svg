@@ -1,137 +1,111 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg"
+     preserveAspectRatio="xMidYMid slice"
+     style="width: 100%; height: 100%; position: fixed; top: 0; left: 0; z-index: -1; background-color: #ffffff;">
+
   <style>
-    /* --- Dot Styles --- */
-    /* Removed 'r' attribute, now set inline */
-    .intersection-dot {
-      opacity: 0; 
-      animation-name: intersection-pulse; 
-      animation-timing-function: ease-in-out;
-      animation-iteration-count: infinite;
-      animation-direction: alternate;
-    }
-    .intersection-dot-bright {
-      opacity: 0;
-      animation-name: intersection-pulse-bright;
+    .pulse-circle {
+      /* fill, fill-opacity, r set inline */
+      /* CSS variables used for animation variation */
+      animation-name: floatPulse;
       animation-timing-function: ease-in-out;
       animation-iteration-count: infinite;
       animation-direction: alternate;
     }
 
-    /* --- Connection Line Styles --- */
-    .connection-line {
-      opacity: 0;
-      stroke-dasharray: 5, 5;
-      animation: connection 15s linear infinite;
-      stroke-width: 1; 
+    .rotating-arcs, .rotating-arcs-fast {
+       /* stroke, stroke-width, stroke-opacity set inline */
+       fill: none;
+       /* Set common rotation center near bottom-right */
+       transform-origin: 1000px 700px;
+       animation-timing-function: linear;
+       animation-iteration-count: infinite;
     }
-    
-    /* --- Spline Styles --- */
-    .spline {
-      opacity: 0; 
-      stroke-width: 1.5; 
-      fill: none; 
-      animation-name: fade-spline;
-      animation-iteration-count: infinite;
-      animation-timing-function: ease-in-out; 
+    .rotating-arcs { animation-name: rotateSlow; }
+    .rotating-arcs-fast { animation-name: rotateFast; }
+
+
+    @keyframes floatPulse {
+      0% {
+        /* Use CSS variable for initial state, with fallback */
+        transform: translate(0px, 0px);
+        opacity: var(--start-opacity, 0.5);
+      }
+      100% {
+        /* Use CSS variables for target state, set inline */
+        transform: translate(var(--tx, 5px), var(--ty, -5px)); /* Subtle drift */
+        opacity: var(--end-opacity, 0.8); /* Pulse opacity */
+      }
     }
-    
-    /* --- Keyframes --- */
-    
-    /* Dot Keyframes */
-    @keyframes intersection-pulse {
-      0%, 100% { opacity: 0; }
-      50% { opacity: 0.6; } 
+
+    @keyframes rotateSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
-    @keyframes intersection-pulse-bright {
-      0%, 100% { opacity: 0; }
-      50% { opacity: 0.9; } 
+
+     @keyframes rotateFast { /* Faster rotation */
+      from { transform: rotate(0deg); }
+      to { transform: rotate(-360deg); } /* Opposite direction */
     }
-    
-    /* Connection Line Keyframes */
-    @keyframes connection {
-      0%, 20% { opacity: 0; }
-      30%, 70% { opacity: 0.25; } 
-      80%, 100% { opacity: 0; }
-    }
-    
-    /* Spline Fade Keyframes */
-    @keyframes fade-spline {
-      0%   { opacity: 0; }   
-      25%  { opacity: 0.4; } 
-      75%  { opacity: 0.4; } 
-      100% { opacity: 0; }   
-    }
+
+    /* Define base animation timings for different elements */
+    .c1 { animation-duration: 12s; animation-delay: -1s; }
+    .c2 { animation-duration: 15s; animation-delay: -3s; }
+    .c3 { animation-duration: 10s; animation-delay: -6s; }
+    .c4 { animation-duration: 18s; animation-delay: -9s; }
+    .c5 { animation-duration: 14s; animation-delay: -12s; }
+    .c6 { animation-duration: 16s; animation-delay: 0s; }
+
+    /* Rotation speeds for arc groups */
+    .arcs1 { animation-duration: 120s; } /* Very slow */
+    .arcs2 { animation-duration: 90s; }
+    .arcs3 { animation-duration: 70s; } /* Faster */
 
   </style>
 
   <rect width="1440" height="900" fill="#ffffff" />
-    
-  <g>
-    <path id="spline1" class="spline" d="M50 150C120 180 200 100 250 150C300 200 320 300 400 250C480 200 550 250 600 150" stroke="#4592d6" style="animation-duration: 12.5s; animation-delay: 0.8s;"/> 
-    <path id="spline2" class="spline" d="M750 50C850 120 900 200 1000 150C1100 100 1200 150 1300 100" stroke="#3adce5" style="animation-duration: 9.2s; animation-delay: 3.1s;"/>
-    <path id="spline3" class="spline" d="M300 450C400 420 500 480 600 400C700 320 800 380 900 350C1000 320 1100 380 1200 350" stroke="#13b3c8" style="animation-duration: 15.8s; animation-delay: 1.5s;"/>
-    <path id="spline4" class="spline" d="M100 650C200 600 250 700 350 650C450 600 500 680 600 650" stroke="#4bc0e6" style="animation-duration: 7.7s; animation-delay: 5.4s;"/>
-    <path id="spline5" class="spline" d="M800 700C900 650 1000 750 1100 680C1200 610 1300 650 1350 600" stroke="#6fb8d6" style="animation-duration: 14.1s; animation-delay: 2.9s;"/>
-    <path id="spline6" class="spline" d="M400 850 C 550 800, 700 880, 850 800 C 1000 720, 1100 800, 1200 750" stroke="#5da0ce" style="animation-duration: 11.3s; animation-delay: 6.7s;"/>
-    <path id="spline7" class="spline" d="M650 80 C 750 150, 850 50, 950 120 C 1050 190, 1150 100, 1250 150" stroke="#417bcb" style="animation-duration: 17.4s; animation-delay: 0.2s;"/>
-    <path id="spline8" class="spline" d="M1350 200 C 1200 350, 1000 450, 800 500 C 600 550, 400 580, 200 550" stroke="#4ca9ec" style="animation-duration: 10.6s; animation-delay: 8.8s;"/>
-    <path id="spline9" class="spline" d="M150 50 C 180 250, 120 450, 200 600 C 280 750, 220 850, 300 900" stroke="#4689b1" style="animation-duration: 13.9s; animation-delay: 4.3s;"/>
-    <path id="spline10" class="spline" d="M400 500 C 600 550, 800 450, 1000 520 C 1200 590, 1300 500, 1400 550" stroke="#1c9ca4" style="animation-duration: 8.1s; animation-delay: 10.1s;"/>
-  </g>
-  
-  <g>
-     <line class="connection-line" style="animation-delay: 0s" x1="50" y1="150" x2="120" y2="180" stroke="#4592d6" />
-    <line class="connection-line" style="animation-delay: 2s" x1="120" y1="180" x2="200" y2="100" stroke="#3adce5" />
-    <line class="connection-line" style="animation-delay: 4s" x1="200" y1="100" x2="250" y2="150" stroke="#13b3c8" />
-    <line class="connection-line" style="animation-delay: 1s" x1="250" y1="150" x2="300" y2="200" stroke="#4bc0e6" />
-    <line class="connection-line" style="animation-delay: 3s" x1="300" y1="200" x2="320" y2="300" stroke="#6fb8d6" />
-    <line class="connection-line" style="animation-delay: 5s" x1="320" y1="300" x2="400" y2="250" stroke="#5da0ce" />
-    <line class="connection-line" style="animation-delay: 0.5s" x1="400" y1="250" x2="480" y2="200" stroke="#417bcb" />
-    <line class="connection-line" style="animation-delay: 2.5s" x1="480" y1="200" x2="550" y2="250" stroke="#4ca9ec" />
-    <line class="connection-line" style="animation-delay: 4.5s" x1="550" y1="250" x2="600" y2="150" stroke="#4689b1" />
-    <line class="connection-line" style="animation-delay: 1s" x1="750" y1="50" x2="850" y2="120" stroke="#1c9ca4" />
-    <line class="connection-line" style="animation-delay: 3s" x1="850" y1="120" x2="900" y2="200" stroke="#4592d6" />
-    <line class="connection-line" style="animation-delay: 5s" x1="900" y1="200" x2="1000" y2="150" stroke="#3adce5" />
-    <line class="connection-line" style="animation-delay: 1.5s" x1="1000" y1="150" x2="1100" y2="100" stroke="#13b3c8" />
-    <line class="connection-line" style="animation-delay: 3.5s" x1="1100" y1="100" x2="1200" y2="150" stroke="#4bc0e6" />
-    <line class="connection-line" style="animation-delay: 0s" x1="1200" y1="150" x2="1300" y2="100" stroke="#6fb8d6" />
-    <line class="connection-line" style="animation-delay: 3s" x1="300" y1="450" x2="400" y2="420" stroke="#5da0ce" />
-    <line class="connection-line" style="animation-delay: 0s" x1="400" y1="420" x2="500" y2="480" stroke="#417bcb" />
-    <line class="connection-line" style="animation-delay: 2s" x1="500" y1="480" x2="600" y2="400" stroke="#4ca9ec" />
-    <line class="connection-line" style="animation-delay: 4s" x1="600" y1="400" x2="700" y2="320" stroke="#4689b1" />
-    <line class="connection-line" style="animation-delay: 1s" x1="700" y1="320" x2="800" y2="380" stroke="#1c9ca4" />
-    <line class="connection-line" style="animation-delay: 3.5s" x1="800" y1="380" x2="900" y2="350" stroke="#4592d6" />
-    <line class="connection-line" style="animation-delay: 5.5s" x1="900" y1="350" x2="1000" y2="320" stroke="#3adce5" />
-    <line class="connection-line" style="animation-delay: 2.5s" x1="1000" y1="320" x2="1100" y2="380" stroke="#13b3c8" />
-    <line class="connection-line" style="animation-delay: 4.5s" x1="1100" y1="380" x2="1200" y2="350" stroke="#4bc0e6" />
-    <line class="connection-line" style="animation-delay: 2s" x1="100" y1="650" x2="200" y2="600" stroke="#6fb8d6" />
-    <line class="connection-line" style="animation-delay: 4s" x1="200" y1="600" x2="250" y2="700" stroke="#5da0ce" />
-    <line class="connection-line" style="animation-delay: 0s" x1="250" y1="700" x2="350" y2="650" stroke="#417bcb" />
-    <line class="connection-line" style="animation-delay: 3s" x1="350" y1="650" x2="450" y2="600" stroke="#4ca9ec" />
-    <line class="connection-line" style="animation-delay: 5s" x1="450" y1="600" x2="500" y2="680" stroke="#4689b1" />
-    <line class="connection-line" style="animation-delay: 1s" x1="500" y1="680" x2="600" y2="650" stroke="#1c9ca4" />
-    <line class="connection-line" style="animation-delay: 5s" x1="800" y1="700" x2="900" y2="650" stroke="#4592d6" />
-    <line class="connection-line" style="animation-delay: 3s" x1="900" y1="650" x2="1000" y2="750" stroke="#3adce5" />
-    <line class="connection-line" style="animation-delay: 1s" x1="1000" y1="750" x2="1100" y2="680" stroke="#13b3c8" />
-    <line class="connection-line" style="animation-delay: 4s" x1="1100" y1="680" x2="1200" y2="610" stroke="#4bc0e6" />
-    <line class="connection-line" style="animation-delay: 2s" x1="1200" y1="610" x2="1300" y2="650" stroke="#6fb8d6" />
-    <line class="connection-line" style="animation-delay: 0.5s" x1="1300" y1="650" x2="1350" y2="600" stroke="#5da0ce" />
-  </g>
 
-  <g id="intersections">
-      <circle class="intersection-dot" cx="380" cy="260" r="1.8" fill="#4689b1" style="animation-duration: 15.1s; animation-delay: 0.6s;"/> 
-      <circle class="intersection-dot-bright" cx="950" cy="220" r="2.4" fill="#1c9ca4" style="animation-duration: 20.9s; animation-delay: 5.7s;"/> 
-      <circle class="intersection-dot" cx="900" cy="480" r="1.1" fill="#4592d6" style="animation-duration: 10.3s; animation-delay: 10.8s;"/>       
-      <circle class="intersection-dot" cx="780" cy="90" r="2.0" fill="#3adce5" style="animation-duration: 23.5s; animation-delay: 2.9s;"/> 
-      <circle class="intersection-dot-bright" cx="500" cy="210" r="1.5" fill="#13b3c8" style="animation-duration: 14.2s; animation-delay: 7.6s;"/> 
-      <circle class="intersection-dot" cx="700" cy="380" r="2.2" fill="#4bc0e6" style="animation-duration: 18.1s; animation-delay: 12.7s;"/> 
-      <circle class="intersection-dot" cx="170" cy="350" r="1.3" fill="#6fb8d6" style="animation-duration: 21.7s; animation-delay: 4.1s;"/> 
-      <circle class="intersection-dot-bright" cx="190" cy="610" r="2.5" fill="#5da0ce" style="animation-duration: 9.8s; animation-delay: 9.3s;"/> 
-      <circle class="intersection-dot" cx="550" cy="450" r="1.0" fill="#417bcb" style="animation-duration: 16.9s; animation-delay: 14.8s;"/> 
-      <circle class="intersection-dot" cx="850" cy="600" r="1.9" fill="#4ca9ec" style="animation-duration: 22.5s; animation-delay: 1.4s;"/> 
-      <circle class="intersection-dot-bright" cx="1150" cy="650" r="2.3" fill="#4689b1" style="animation-duration: 11.5s; animation-delay: 6.2s;"/> 
-      <circle class="intersection-dot" cx="300" cy="700" r="1.6" fill="#1c9ca4" style="animation-duration: 17.3s; animation-delay: 11.1s;"/> 
+  <g id="tech-elements">
+
+    <g class="arcs1 rotating-arcs">
+      <path d="M 1000 500 A 200 200 0 1 1 1200 700" stroke="#2196f3" stroke-width="1" stroke-opacity="0.4"/>
+      <path d="M 950 465 A 250 250 0 1 1 1235 750" stroke="#26c6da" stroke-width="0.8" stroke-opacity="0.3" stroke-dasharray="4 8"/>
+    </g>
+     <g class="arcs2 rotating-arcs">
+      <path d="M 900 430 A 300 300 0 1 0 1280 810" stroke="#4aa9de" stroke-width="1.2" stroke-opacity="0.5"/>
+      <path d="M 850 395 A 350 350 0 0 1 1330 880" stroke="#1565c0" stroke-width="0.7" stroke-opacity="0.3" stroke-dasharray="10 10"/>
+    </g>
+     <g class="arcs3 rotating-arcs-fast"> <path d="M 1050 535 A 150 150 0 0 0 1150 650" stroke="#00acc1" stroke-width="1.5" stroke-opacity="0.6"/>
+    </g>
+
+    <g id="circle-cluster">
+      <circle class="pulse-circle c1" cx="950" cy="650" r="25" fill="#2196f3" style="--start-opacity: 0.6; --end-opacity: 0.8; --tx: -8px; --ty: 4px;" />
+      <circle class="pulse-circle c2" cx="1050" cy="750" r="20" fill="#26c6da" style="--start-opacity: 0.5; --end-opacity: 0.7; --tx: 6px; --ty: 6px;" />
+      <circle class="pulse-circle c3" cx="880" cy="720" r="18" fill="#4aa9de" style="--start-opacity: 0.7; --end-opacity: 0.9; --tx: -5px; --ty: -7px;" />
+      <circle class="pulse-circle c4" cx="1120" cy="680" r="22" fill="#1565c0" style="--start-opacity: 0.4; --end-opacity: 0.6; --tx: 10px; --ty: -3px;" />
+      <circle class="pulse-circle c5" cx="980" cy="800" r="15" fill="#00acc1" style="--start-opacity: 0.6; --end-opacity: 0.8; --tx: -3px; --ty: 9px;" />
+
+      <circle class="pulse-circle c6" cx="920" cy="760" r="12" fill="#2196f3" style="--start-opacity: 0.3; --end-opacity: 0.5; --tx: 7px; --ty: -2px;" />
+       <circle class="pulse-circle c1" cx="1080" cy="710" r="14" fill="#26c6da" style="--start-opacity: 0.5; --end-opacity: 0.7; --tx: -6px; --ty: -6px;" />
+       <circle class="pulse-circle c2" cx="1020" cy="670" r="16" fill="#4aa9de" style="--start-opacity: 0.4; --end-opacity: 0.6; --tx: 4px; --ty: 8px;" />
+
+      <circle class="pulse-circle c3" cx="1150" cy="780" r="8" fill="#1565c0" style="--start-opacity: 0.7; --end-opacity: 0.9; --tx: -9px; --ty: -4px;" />
+      <circle class="pulse-circle c4" cx="850" cy="680" r="10" fill="#00acc1" style="--start-opacity: 0.5; --end-opacity: 0.7; --tx: 3px; --ty: 5px;" />
+       <circle class="pulse-circle c5" cx="940" cy="830" r="7" fill="#2196f3" style="--start-opacity: 0.6; --end-opacity: 0.8; --tx: -5px; --ty: -5px;" />
+        <circle class="pulse-circle c6" cx="1070" cy="810" r="9" fill="#26c6da" style="--start-opacity: 0.4; --end-opacity: 0.6; --tx: 8px; --ty: 3px;" />
+    </g>
+
+    <g id="scattered-dots">
+        <circle class="pulse-circle c1" cx="300" cy="250" r="4" fill="#4aa9de" style="--start-opacity: 0.3; --end-opacity: 0.6; --tx: 15px; --ty: 10px;" />
+        <circle class="pulse-circle c2" cx="600" cy="180" r="3" fill="#2196f3" style="--start-opacity: 0.4; --end-opacity: 0.7; --tx: -12px; --ty: 8px;" />
+        <circle class="pulse-circle c3" cx="1200" cy="150" r="5" fill="#26c6da" style="--start-opacity: 0.2; --end-opacity: 0.5; --tx: 8px; --ty: -15px;" />
+        <circle class="pulse-circle c4" cx="150" cy="600" r="4" fill="#1565c0" style="--start-opacity: 0.5; --end-opacity: 0.8; --tx: -10px; --ty: -10px;" />
+        <circle class="pulse-circle c5" cx="1350" cy="850" r="3" fill="#00acc1" style="--start-opacity: 0.3; --end-opacity: 0.6; --tx: 14px; --ty: -6px;" />
+         <circle class="pulse-circle c6" cx="550" cy="800" r="5" fill="#4aa9de" style="--start-opacity: 0.4; --end-opacity: 0.7; --tx: -8px; --ty: 12px;" />
+         <circle class="pulse-circle c1" cx="780" cy="450" r="4" fill="#2196f3" style="--start-opacity: 0.5; --end-opacity: 0.7; --tx: 10px; --ty: 10px;" />
+         <circle class="pulse-circle c3" cx="420" cy="580" r="3" fill="#26c6da" style="--start-opacity: 0.3; --end-opacity: 0.6; --tx: -15px; --ty: 5px;" />
+     </g>
+
   </g>
 
 </svg>
