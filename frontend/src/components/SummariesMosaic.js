@@ -1,10 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import './SummariesMosaic.css';
 
-const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights = false }) => {
+const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights = false, noMessagesFound = false }) => {
   // State to track which tooltips have been disabled by the user
   const [hideImportanceTooltip, setHideImportanceTooltip] = useState(false);
   const [hideMessageCountTooltip, setHideMessageCountTooltip] = useState(false);
+  const emptyMessageRef = useRef(null);
+  
+  // Auto-scroll to the empty message when it appears
+  useEffect(() => {
+    if (noMessagesFound && emptyMessageRef.current) {
+      setTimeout(() => {
+        emptyMessageRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 100);
+    }
+  }, [noMessagesFound]);
   
   // Map metatopics to predefined colors
   const getMetatopicColor = (metatopic) => {
@@ -439,6 +452,14 @@ const SummariesMosaic = ({ topics, onSelectTopic, selectedTopicId, showInsights 
   };
 
   // Now add the conditional return after all hooks are defined
+  if (noMessagesFound) {
+    return (
+      <div className="mosaic-empty" ref={emptyMessageRef}>
+        <p>No messages found for the selected time period and sources. Please try a different time period or sources.</p>
+      </div>
+    );
+  }
+  
   if (!topics || topics.length === 0) {
     return (
       <div className="mosaic-empty">

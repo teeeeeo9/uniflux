@@ -96,13 +96,24 @@ function App() {
       // Check if we have valid summaries
       if (!summariesData.topics || summariesData.topics.length === 0) {
         console.log('No topics found in summaries');
-        setSummaries({ topics: [] });
+        setSummaries({ topics: [], noMessagesFound: true });
       } else {
         setSummaries(summariesData);
       }
     } catch (err) {
       console.error('Error fetching summaries:', err);
       setError(err.message || 'An error occurred while processing news data');
+      
+      // Scroll to error message
+      setTimeout(() => {
+        const errorElement = document.querySelector('.error');
+        if (errorElement) {
+          window.scrollTo({
+            top: errorElement.getBoundingClientRect().top + window.pageYOffset - 100,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
     } finally {
       setLoading(false);
       setLoadingStep(null);
@@ -111,7 +122,11 @@ function App() {
 
   const fetchInsights = async () => {
     if (!summaries || !summaries.topics || summaries.topics.length === 0) {
-      setError('No summaries available to generate insights.');
+      if (summaries && summaries.noMessagesFound) {
+        setError('No messages found in the database for the selected time period and sources. Cannot generate insights.');
+      } else {
+        setError('No summaries available to generate insights.');
+      }
       return null;
     }
 
@@ -268,7 +283,7 @@ function App() {
         )}
         
         {/* Summaries Section */}
-        {!loading && !error && summaries && summaries.topics && summaries.topics.length > 0 && (
+        {!loading && !error && summaries && summaries.topics && (
           <div className="app-section summaries-section-container">
             <div className="section-header">
               <h2 className="section-title">News Summaries</h2>
@@ -285,6 +300,7 @@ function App() {
               onSelectTopic={handleSelectTopic}
               selectedTopicId={selectedTopicIndex}
               onScrollToMessages={scrollToMessages}
+              noMessagesFound={summaries.noMessagesFound}
             />
           </div>
         )}
@@ -302,7 +318,8 @@ function App() {
         )}
         
         {/* Show Subscription at the bottom when summaries or details are shown */}
-        {(!loading && !error && summaries && summaries.topics && summaries.topics.length > 0) && (
+        {(!loading && !error && summaries && summaries.topics && 
+          (summaries.topics.length > 0 || !summaries.noMessagesFound)) && (
           <div className="bottom-subscription-container">
             <Subscription />
           </div>
