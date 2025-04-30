@@ -19,6 +19,16 @@
   --color-general: #f59e0b;
   --color-commodities: #6366f1;
   --color-other: #6b7280;
+  
+  /* Enhanced colors for actionable insights */
+  --color-long: #0ea5e9;      /* Bright blue that matches the logo */
+  --color-short: #ef4444;     /* Red */
+  --color-neutral: #6b7280;   /* Gray */
+  --color-long-neutral: #38bdf8; /* Lighter blue */
+  --color-short-neutral: #fb7185; /* Lighter red */
+  --color-risk: #f97316;      /* Orange for risks */
+  --color-question: #8b5cf6;  /* Purple for questions */
+  --color-resource: #10b981;  /* Green for resources */
 }
 
 .app {
@@ -53,8 +63,6 @@
   justify-content: center;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
-
 
 .app-logo {
   width: 48px;

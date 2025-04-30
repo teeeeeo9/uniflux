@@ -333,7 +333,7 @@ const Settings = ({ onFetchSummaries }) => {
                     </div>
                   ) : (
                     <>
-                      <p>Enter your email to get notified when we add support for custom news sources.</p>
+                      <p>Enter your email to get access to custom news sources feature.</p>
                       <div className="email-subscription-form">
                         <input 
                           type="email" 
