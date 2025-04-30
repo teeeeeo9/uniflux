@@ -402,14 +402,23 @@ const TopicDetails = forwardRef(({ topic, hasInsights = false, onGenerateInsight
                   <div className="insight-block resources-block">
                     <h4 className="insight-title">Useful Resources</h4>
                     <div className="resources-list">
-                      {topic.insights.useful_resources.map((resource, idx) => (
-                        <div key={idx} className="resource-item">
-                          <a href={resource.url} target="_blank" rel="noopener noreferrer" className="resource-link">
-                            {resource.url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
-                          </a>
-                          <p className="resource-description">{resource.description}</p>
-                        </div>
-                      ))}
+                      {topic.insights.useful_resources.map((resource, idx) => {
+                        // Extract domain for display
+                        let displayUrl = resource.url.replace(/^https?:\/\/(www\.)?/, '');
+                        let domain = displayUrl.split('/')[0];
+                        
+                        return (
+                          <div key={idx} className="resource-item">
+                            <a href={resource.url} target="_blank" rel="noopener noreferrer" className="resource-link">
+                              {domain}
+                            </a>
+                            <p className="resource-description">{resource.description}</p>
+                            <div className="resource-meta">
+                              <span className="resource-tag">Reference</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
