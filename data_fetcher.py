@@ -1157,6 +1157,7 @@ async def main():
     rss_data = {}
     
     # Fetch messages from Telegram channels
+    # telegram_channels = telegram_channels[:2]
     if telegram_channels:
         telegram_data = await fetch_telegram_messages(telegram_channels, time_range=time_range, enable_retries=False, debug_mode=False)
         
@@ -1176,15 +1177,15 @@ async def main():
             logger.info(f"Number of entries saved to database: {len(message_ids)}")
             logger.info(f"Message IDs: {message_ids}")
     
-    # Send notification through Telegram bot
-    if telegram_bot_available:
-        try:
-            logger.info("Sending completion notification to Telegram")
-            await notify_data_fetcher_completion(telegram_data, rss_data)
-            logger.info("Telegram notification sent successfully")
-        except Exception as e:
-            logger.error(f"Failed to send Telegram notification: {e}")
-            logger.error(traceback.format_exc())
+    # # Send notification through Telegram bot
+    # if telegram_bot_available:
+    #     try:
+    #         logger.info("Sending completion notification to Telegram")
+    #         await notify_data_fetcher_completion(telegram_data, rss_data)
+    #         logger.info("Telegram notification sent successfully")
+    #     except Exception as e:
+    #         logger.error(f"Failed to send Telegram notification: {e}")
+    #         logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     # Run the async main function

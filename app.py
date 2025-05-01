@@ -25,7 +25,11 @@ from telegram_bot import (
     notify_new_feedback, 
     notify_summaries_request, 
     notify_insights_request,
-    init_bot
+    init_bot,
+    sync_notify_new_subscriber,
+    sync_notify_new_feedback,
+    sync_notify_summaries_request,
+    sync_notify_insights_request
 )
 
 
@@ -46,8 +50,9 @@ logger = logging.getLogger(__name__)
 
 # Initialize the Telegram bot
 try:
+    logger.info("Initializing Telegram notification bot...")
     bot_loop = init_bot()
-    logger.info("Telegram notification bot initialized")
+    logger.info("Telegram notification bot initialized and running in background thread")
 except Exception as e:
     logger.error(f"Failed to initialize Telegram bot: {e}")
     logger.error(traceback.format_exc())
@@ -218,8 +223,10 @@ async def get_summaries():
     
     # Send Telegram notification
     try:
-        if bot_loop:
-            await notify_summaries_request(request_id, period, sources_str)
+        # Use synchronous notification method instead of awaiting
+        success = sync_notify_summaries_request(request_id, period, sources_str)
+        if success:
+            logger.info(f"Notification sent successfully for summaries request: {request_id}")
     except Exception as e:
         logger.error(f"Failed to send Telegram notification: {e}")
     
@@ -344,8 +351,10 @@ async def get_insights():
         
         # Send Telegram notification
         try:
-            if bot_loop:
-                await notify_insights_request(request_id, len(summaries))
+            # Use synchronous notification method instead of awaiting
+            success = sync_notify_insights_request(request_id, len(summaries))
+            if success:
+                logger.info(f"Notification sent successfully for insights request: {request_id}")
         except Exception as e:
             logger.error(f"Failed to send Telegram notification: {e}")
         
@@ -552,6 +561,15 @@ async def get_insights_legacy():
     
     logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
     
+    # We can use the same summaries notification here as it's similar
+    try:
+        # Use synchronous notification method instead of awaiting
+        success = sync_notify_summaries_request(request_id, period, sources_str)
+        if success:
+            logger.info(f"Notification sent successfully for legacy insights request: {request_id}")
+    except Exception as e:
+        logger.error(f"Failed to send Telegram notification: {e}")
+    
     try:
         # Generate summaries with direct await
         logger.info(f"PROCESS [{request_id}] - Calling main with period={period}, sources={sources}, include_insights=True")
@@ -652,9 +670,9 @@ async def submit_feedback():
         # Send Telegram notification
         try:
             print('Send Telegram notification')
-            if bot_loop:
-                await notify_new_feedback(email, feedback_type, data['message'])
-            print('Notification sent')
+            # Use synchronous notification method instead of awaiting
+            success = sync_notify_new_feedback(email, feedback_type, data['message'])
+            print(f'Notification sent: {success}')
         except Exception as e:
             logger.error(f"Failed to send Telegram notification: {e}")
             
@@ -752,10 +770,10 @@ async def subscribe():
         
         # Send Telegram notification 
         try:
-            if bot_loop:
-                print('Send Telegram notification')
-                await notify_new_subscriber(email, source)
-                print('Notification sent')
+            print('Send Telegram notification')
+            # Use synchronous notification method instead of awaiting
+            success = sync_notify_new_subscriber(email, source)
+            print(f'Notification sent: {success}')
         except Exception as e:
             logger.error(f"Failed to send Telegram notification: {e}")
             

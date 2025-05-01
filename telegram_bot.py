@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from telethon import TelegramClient
 import asyncio
 from datetime import datetime
+from functools import partial
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +21,7 @@ ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID")  # Your chat ID to receive n
 
 # Create the client
 bot = TelegramClient('bot_session', API_ID, API_HASH)
+bot_loop = None
 
 async def start_bot():
     """Start the bot and set up event handlers"""
@@ -49,6 +51,21 @@ async def notify_new_subscriber(email, source="main"):
     await bot.send_message(int(ADMIN_CHAT_ID), message)
     logger.info(f"Sent notification about new subscriber: {email}")
 
+def sync_notify_new_subscriber(email, source="main"):
+    """Synchronous wrapper for notify_new_subscriber"""
+    global bot_loop
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(notify_new_subscriber(email, source), bot_loop)
+        try:
+            future.result(10)  # Wait up to 10 seconds for the message to be sent
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send subscriber notification: {e}")
+            return False
+    else:
+        logger.error("Bot loop is not running, cannot send notification")
+        return False
+
 async def notify_new_feedback(email, feedback_type, message):
     """Notify about new feedback"""
     if not ADMIN_CHAT_ID:
@@ -63,6 +80,21 @@ async def notify_new_feedback(email, feedback_type, message):
     
     await bot.send_message(int(ADMIN_CHAT_ID), notification)
     logger.info(f"Sent notification about new feedback from: {email}")
+
+def sync_notify_new_feedback(email, feedback_type, message):
+    """Synchronous wrapper for notify_new_feedback"""
+    global bot_loop
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(notify_new_feedback(email, feedback_type, message), bot_loop)
+        try:
+            future.result(10)  # Wait up to 10 seconds for the message to be sent
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send feedback notification: {e}")
+            return False
+    else:
+        logger.error("Bot loop is not running, cannot send notification")
+        return False
 
 async def notify_summaries_request(request_id, period, sources):
     """Notify when summaries endpoint is called"""
@@ -80,6 +112,21 @@ async def notify_summaries_request(request_id, period, sources):
     await bot.send_message(int(ADMIN_CHAT_ID), message)
     logger.info(f"Sent notification about summaries request: {request_id}")
 
+def sync_notify_summaries_request(request_id, period, sources):
+    """Synchronous wrapper for notify_summaries_request"""
+    global bot_loop
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(notify_summaries_request(request_id, period, sources), bot_loop)
+        try:
+            future.result(10)  # Wait up to 10 seconds for the message to be sent
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send summaries notification: {e}")
+            return False
+    else:
+        logger.error("Bot loop is not running, cannot send notification")
+        return False
+
 async def notify_insights_request(request_id, topic_count):
     """Notify when insights POST endpoint is called"""
     if not ADMIN_CHAT_ID:
@@ -93,6 +140,21 @@ async def notify_insights_request(request_id, topic_count):
     
     await bot.send_message(int(ADMIN_CHAT_ID), message)
     logger.info(f"Sent notification about insights request: {request_id}")
+
+def sync_notify_insights_request(request_id, topic_count):
+    """Synchronous wrapper for notify_insights_request"""
+    global bot_loop
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(notify_insights_request(request_id, topic_count), bot_loop)
+        try:
+            future.result(10)  # Wait up to 10 seconds for the message to be sent
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send insights notification: {e}")
+            return False
+    else:
+        logger.error("Bot loop is not running, cannot send notification")
+        return False
 
 async def notify_data_fetcher_completion(telegram_results, rss_results):
     """Notify when data fetcher completes its work"""
@@ -121,12 +183,39 @@ async def notify_data_fetcher_completion(telegram_results, rss_results):
     await bot.send_message(int(ADMIN_CHAT_ID), message)
     logger.info("Sent notification about data fetcher completion")
 
+def sync_notify_data_fetcher_completion(telegram_results, rss_results):
+    """Synchronous wrapper for notify_data_fetcher_completion"""
+    global bot_loop
+    if bot_loop and bot_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(notify_data_fetcher_completion(telegram_results, rss_results), bot_loop)
+        try:
+            future.result(10)  # Wait up to 10 seconds for the message to be sent
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send data fetcher completion notification: {e}")
+            return False
+    else:
+        logger.error("Bot loop is not running, cannot send notification")
+        return False
+
 # Initialize bot in a non-blocking way
 def init_bot():
     """Initialize the bot without blocking"""
+    global bot_loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(start_bot())
+    bot_loop = loop
+    
+    # Start the loop in a background thread
+    def run_loop_forever(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+    
+    import threading
+    thread = threading.Thread(target=run_loop_forever, args=(loop,), daemon=True)
+    thread.start()
+    
     return loop
 
 # Start the bot if this file is run directly
