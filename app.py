@@ -19,6 +19,15 @@ from data_summarizer import process_and_aggregate_news, generate_insights, main 
 import threading
 from functools import wraps
 import time
+# Import the Telegram bot functions
+from telegram_bot import (
+    notify_new_subscriber, 
+    notify_new_feedback, 
+    notify_summaries_request, 
+    notify_insights_request,
+    init_bot
+)
+
 
 
 load_dotenv()
@@ -33,6 +42,16 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+# Initialize the Telegram bot
+try:
+    bot_loop = init_bot()
+    logger.info("Telegram notification bot initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize Telegram bot: {e}")
+    logger.error(traceback.format_exc())
+    bot_loop = None
 
 # Telegram API credentials (move to environment variables for security)
 api_id = os.getenv("TELEGRAM_API_ID")
@@ -156,29 +175,6 @@ def format_log_data(data):
     except Exception as e:
         return f"[Error formatting log data: {str(e)}]"
 
-# Helper function to run async functions in a synchronous context
-def run_async(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Get or create an event loop for this thread
-        loop = ensure_event_loop()
-        
-        try:
-            # Run the function in the event loop
-            return loop.run_until_complete(func(*args, **kwargs))
-        except RuntimeError as e:
-            if "Event loop is closed" in str(e):
-                # If the loop closed during execution, create a new one and retry
-                logger.warning("Event loop closed during execution. Creating a new one and retrying...")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                return loop.run_until_complete(func(*args, **kwargs))
-            else:
-                raise
-        finally:
-            # Don't close the loop after use - this helps prevent issues with subsequent calls
-            pass
-    return wrapper
 
 @app.route('/summaries', methods=['GET'])
 async def get_summaries():
@@ -219,6 +215,13 @@ async def get_summaries():
     sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
     
     logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
+    
+    # Send Telegram notification
+    try:
+        if bot_loop:
+            await notify_summaries_request(request_id, period, sources_str)
+    except Exception as e:
+        logger.error(f"Failed to send Telegram notification: {e}")
     
     try:
         # Generate summaries with direct await
@@ -338,6 +341,13 @@ async def get_insights():
         
         topic_names = [topic.get('topic', 'Unknown') for topic in summaries]
         logger.info(f"REQUEST [{request_id}] - Processing insights for topic(s): {', '.join(topic_names)}")
+        
+        # Send Telegram notification
+        try:
+            if bot_loop:
+                await notify_insights_request(request_id, len(summaries))
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {e}")
         
         # Generate insights for each topic with direct await
         logger.info(f"PROCESS [{request_id}] - Generating insights for {len(summaries)} topic(s)")
@@ -638,6 +648,15 @@ async def submit_feedback():
                 (data['email'], data['message'], data['type'])
             )
             conn.commit()
+        
+        # Send Telegram notification
+        try:
+            print('Send Telegram notification')
+            if bot_loop:
+                await notify_new_feedback(email, feedback_type, data['message'])
+            print('Notification sent')
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {e}")
             
         logger.info(f"RESPONSE [{request_id}] - Feedback submitted successfully from {email}")
         
@@ -730,6 +749,15 @@ async def subscribe():
                 )
                 conn.commit()
                 is_new = False
+        
+        # Send Telegram notification 
+        try:
+            if bot_loop:
+                print('Send Telegram notification')
+                await notify_new_subscriber(email, source)
+                print('Notification sent')
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {e}")
             
         message = "Subscription successful" if is_new else "Subscription updated"
         logger.info(f"RESPONSE [{request_id}] - {message} for {email}")

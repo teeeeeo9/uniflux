@@ -18,6 +18,14 @@ from parser import extract_summary  # Import only the extraction function, get_s
 from config import DATABASE, LOG_FILE, TELEGRAM_SESSION
 from google import genai
 from instruction_templates import INSTRUCTIONS
+# Import Telegram bot notification function
+try:
+    from telegram_bot import notify_data_fetcher_completion
+    telegram_bot_available = True
+except ImportError:
+    telegram_bot_available = False
+    logger = logging.getLogger('data_fetcher')
+    logger.warning("Telegram bot module not available. Notifications will be disabled.")
 
 
 # Configure module-specific logger
@@ -1144,6 +1152,10 @@ async def main():
     # Time range: "1d" for 1 day or "1w" for 1 week
     time_range = "1d"
     
+    # Store results for notification
+    telegram_data = {}
+    rss_data = {}
+    
     # Fetch messages from Telegram channels
     if telegram_channels:
         telegram_data = await fetch_telegram_messages(telegram_channels, time_range=time_range, enable_retries=False, debug_mode=False)
@@ -1163,6 +1175,16 @@ async def main():
             logger.info(f"\nRSS feed: {feed}")
             logger.info(f"Number of entries saved to database: {len(message_ids)}")
             logger.info(f"Message IDs: {message_ids}")
+    
+    # Send notification through Telegram bot
+    if telegram_bot_available:
+        try:
+            logger.info("Sending completion notification to Telegram")
+            await notify_data_fetcher_completion(telegram_data, rss_data)
+            logger.info("Telegram notification sent successfully")
+        except Exception as e:
+            logger.error(f"Failed to send Telegram notification: {e}")
+            logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     # Run the async main function
