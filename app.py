@@ -49,13 +49,17 @@ logger = logging.getLogger(__name__)
 
 
 # Initialize the Telegram bot
-try:
-    logger.info("Initializing Telegram notification bot...")
-    bot_loop = init_bot()
-    logger.info("Telegram notification bot initialized and running in background thread")
-except Exception as e:
-    logger.error(f"Failed to initialize Telegram bot: {e}")
-    logger.error(traceback.format_exc())
+if os.getenv("ENABLE_TELEGRAM_BOT", "false").lower() in ["true", "1", "yes"]:
+    try:
+        logger.info("Initializing Telegram notification bot...")
+        bot_loop = init_bot()
+        logger.info("Telegram notification bot initialized and running in background thread")
+    except Exception as e:
+        logger.error(f"Failed to initialize Telegram bot: {e}")
+        logger.error(traceback.format_exc())
+        bot_loop = None
+else:
+    logger.info("Telegram bot initialization skipped (ENABLE_TELEGRAM_BOT is not enabled)")
     bot_loop = None
 
 # Telegram API credentials (move to environment variables for security)
