@@ -1,0 +1,1519 @@
+[
+    {
+      "topic": "1. Global Industry Sectors (Focus on investable companies, industry dynamics, and innovations)",
+      "sources": []
+    },
+    {
+      "topic": "1.1. Information Technology",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1. Software & Services",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.1. Enterprise Software (e.g., SaaS, Cloud Infrastructure, CRM, ERP)",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.2. Application Software (e.g., Productivity, Design, Gaming Studios)",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.3. Cybersecurity",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.4. Artificial Intelligence (AI) & Machine Learning (ML) Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.4.1. AI Development Platforms & Tools",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.4.2. AI Application Companies (e.g., AI in drug discovery, AI in fintech)",
+      "sources": []
+    },
+    {
+      "topic": "1.1.1.5. Data Analytics & Business Intelligence",
+      "sources": []
+    },
+    {
+      "topic": "1.1.2. Hardware & Equipment",
+      "sources": []
+    },
+    {
+      "topic": "1.1.2.1. Semiconductors & Semiconductor Equipment",
+      "sources": []
+    },
+    {
+      "topic": "1.1.2.2. Computer Hardware & Peripherals (PCs, Servers, Storage)",
+      "sources": []
+    },
+    {
+      "topic": "1.1.2.3. Electronic Equipment, Instruments & Components",
+      "sources": []
+    },
+    {
+      "topic": "1.1.2.4. Technology Distributors",
+      "sources": []
+    },
+    {
+      "topic": "1.1.3. IT Services & Consulting",
+      "sources": []
+    },
+    {
+      "topic": "1.1.3.1. IT Consulting & Outsourcing",
+      "sources": []
+    },
+    {
+      "topic": "1.1.3.2. Data Centers & Hosting Services (companies, not REITs)",
+      "sources": []
+    },
+    {
+      "topic": "1.2. Communication Services",
+      "sources": []
+    },
+    {
+      "topic": "1.2.1. Telecommunication Services",
+      "sources": []
+    },
+    {
+      "topic": "1.2.1.1. Integrated & Wireless Telecom Operators",
+      "sources": []
+    },
+    {
+      "topic": "1.2.1.2. Cable & Satellite Services",
+      "sources": []
+    },
+    {
+      "topic": "1.2.2. Media",
+      "sources": []
+    },
+    {
+      "topic": "1.2.2.1. Broadcasting (TV, Radio)",
+      "sources": []
+    },
+    {
+      "topic": "1.2.2.2. Publishing (News, Books, Journals - as businesses)",
+      "sources": []
+    },
+    {
+      "topic": "1.2.2.3. Advertising & Marketing Agencies",
+      "sources": []
+    },
+    {
+      "topic": "1.2.3. Entertainment",
+      "sources": []
+    },
+    {
+      "topic": "1.2.3.1. Film, TV & Music Production Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.2.3.2. Live Entertainment & Event Promoters",
+      "sources": []
+    },
+    {
+      "topic": "1.2.4. Interactive Media & Services",
+      "sources": []
+    },
+    {
+      "topic": "1.2.4.1. Social Media & Networking Platforms",
+      "sources": []
+    },
+    {
+      "topic": "1.2.4.2. Online Gaming & eSports Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.2.4.3. Video Streaming Services",
+      "sources": []
+    },
+    {
+      "topic": "1.2.4.4. Digital Content & Marketplaces",
+      "sources": []
+    },
+    {
+      "topic": "1.3. Healthcare",
+      "sources": []
+    },
+    {
+      "topic": "1.3.1. Pharmaceuticals & Biotechnology",
+      "sources": []
+    },
+    {
+      "topic": "1.3.1.1. Major Pharmaceutical Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.3.1.2. Biotechnology & Life Sciences Research (Genomics, Gene Therapy)",
+      "sources": []
+    },
+    {
+      "topic": "1.3.1.3. Specialty & Generic Pharmaceuticals",
+      "sources": []
+    },
+    {
+      "topic": "1.3.2. Medical Devices & Equipment",
+      "sources": []
+    },
+    {
+      "topic": "1.3.2.1. Medical Surgical & Diagnostic Equipment",
+      "sources": []
+    },
+    {
+      "topic": "1.3.2.2. Medical Supplies & Disposables",
+      "sources": []
+    },
+    {
+      "topic": "1.3.2.3. Orthopedics & Prosthetics",
+      "sources": []
+    },
+    {
+      "topic": "1.3.3. Healthcare Providers & Services",
+      "sources": []
+    },
+    {
+      "topic": "1.3.3.1. Hospitals, Clinics & Nursing Homes",
+      "sources": []
+    },
+    {
+      "topic": "1.3.3.2. Managed Healthcare & Health Insurance Providers",
+      "sources": []
+    },
+    {
+      "topic": "1.3.3.3. Healthcare Technology (Health IT, Telemedicine platforms)",
+      "sources": []
+    },
+    {
+      "topic": "1.3.4. Life Sciences Tools & Services",
+      "sources": []
+    },
+    {
+      "topic": "1.4. Financials",
+      "sources": []
+    },
+    {
+      "topic": "1.4.1. Banking",
+      "sources": []
+    },
+    {
+      "topic": "1.4.1.1. Global & Diversified Banks",
+      "sources": []
+    },
+    {
+      "topic": "1.4.1.2. Regional Banks & Credit Unions",
+      "sources": []
+    },
+    {
+      "topic": "1.4.1.3. Investment Banking & Brokerage",
+      "sources": []
+    },
+    {
+      "topic": "1.4.1.4. Mortgage Finance",
+      "sources": []
+    },
+    {
+      "topic": "1.4.2. Insurance",
+      "sources": []
+    },
+    {
+      "topic": "1.4.2.1. Life & Health Insurance",
+      "sources": []
+    },
+    {
+      "topic": "1.4.2.2. Property & Casualty Insurance",
+      "sources": []
+    },
+    {
+      "topic": "1.4.2.3. Reinsurance",
+      "sources": []
+    },
+    {
+      "topic": "1.4.2.4. Insurance Brokers",
+      "sources": []
+    },
+    {
+      "topic": "1.4.3. Capital Markets & Asset Management",
+      "sources": []
+    },
+    {
+      "topic": "1.4.3.1. Asset Managers & Custody Banks",
+      "sources": []
+    },
+    {
+      "topic": "1.4.3.2. Exchanges & Financial Data Providers",
+      "sources": []
+    },
+    {
+      "topic": "1.4.4. Financial Technology (FinTech) (excluding primarily crypto businesses)",
+      "sources": []
+    },
+    {
+      "topic": "1.4.4.1. Digital Payments & Processing",
+      "sources": []
+    },
+    {
+      "topic": "1.4.4.2. Alternative Lending & Crowdfunding Platforms",
+      "sources": []
+    },
+    {
+      "topic": "1.4.4.3. WealthTech & Robo-Advisors",
+      "sources": []
+    },
+    {
+      "topic": "1.4.4.4. InsurTech",
+      "sources": []
+    },
+    {
+      "topic": "1.5. Consumer Discretionary",
+      "sources": []
+    },
+    {
+      "topic": "1.5.1. Automotive & Components",
+      "sources": []
+    },
+    {
+      "topic": "1.5.1.1. Auto Manufacturers (ICE Vehicles)",
+      "sources": []
+    },
+    {
+      "topic": "1.5.1.2. Electric Vehicle (EV) Manufacturers",
+      "sources": []
+    },
+    {
+      "topic": "1.5.1.3. Auto Parts & Equipment Suppliers",
+      "sources": []
+    },
+    {
+      "topic": "1.5.1.4. Tire Manufacturers",
+      "sources": []
+    },
+    {
+      "topic": "1.5.2. Consumer Durables & Apparel",
+      "sources": []
+    },
+    {
+      "topic": "1.5.2.1. Household Appliances & Electronics",
+      "sources": []
+    },
+    {
+      "topic": "1.5.2.2. Home Furnishings",
+      "sources": []
+    },
+    {
+      "topic": "1.5.2.3. Apparel, Accessories & Luxury Goods",
+      "sources": []
+    },
+    {
+      "topic": "1.5.3. Retail",
+      "sources": []
+    },
+    {
+      "topic": "1.5.3.1. E-Commerce (Broadline & Specialty)",
+      "sources": []
+    },
+    {
+      "topic": "1.5.3.2. Department Stores & Discount Retailers",
+      "sources": []
+    },
+    {
+      "topic": "1.5.3.3. Specialty Retail (e.g., Home Improvement, Apparel, Electronics)",
+      "sources": []
+    },
+    {
+      "topic": "1.5.4. Hospitality, Leisure & Travel",
+      "sources": []
+    },
+    {
+      "topic": "1.5.4.1. Hotels, Resorts & Cruise Lines",
+      "sources": []
+    },
+    {
+      "topic": "1.5.4.2. Restaurants, Cafes & Bars",
+      "sources": []
+    },
+    {
+      "topic": "1.5.4.3. Casinos & Gaming (Physical)",
+      "sources": []
+    },
+    {
+      "topic": "1.5.4.4. Travel Agencies & Booking Services",
+      "sources": []
+    },
+    {
+      "topic": "1.5.5. Homebuilding & Construction Supplies",
+      "sources": []
+    },
+    {
+      "topic": "1.6. Consumer Staples",
+      "sources": []
+    },
+    {
+      "topic": "1.6.1. Food & Beverage",
+      "sources": []
+    },
+    {
+      "topic": "1.6.1.1. Packaged Foods & Meats",
+      "sources": []
+    },
+    {
+      "topic": "1.6.1.2. Beverages (Alcoholic & Non-Alcoholic)",
+      "sources": []
+    },
+    {
+      "topic": "1.6.1.3. Agricultural Products Companies (Processors, Distributors)",
+      "sources": []
+    },
+    {
+      "topic": "1.6.2. Household & Personal Products",
+      "sources": []
+    },
+    {
+      "topic": "1.6.2.1. Personal Care Products",
+      "sources": []
+    },
+    {
+      "topic": "1.6.2.2. Household Cleaning Products",
+      "sources": []
+    },
+    {
+      "topic": "1.6.3. Food & Staples Retailing",
+      "sources": []
+    },
+    {
+      "topic": "1.6.3.1. Supermarkets & Grocery Stores",
+      "sources": []
+    },
+    {
+      "topic": "1.6.3.2. Drug Stores & Pharmacies",
+      "sources": []
+    },
+    {
+      "topic": "1.7. Industrials",
+      "sources": []
+    },
+    {
+      "topic": "1.7.1. Aerospace & Defense",
+      "sources": []
+    },
+    {
+      "topic": "1.7.2. Transportation & Logistics",
+      "sources": []
+    },
+    {
+      "topic": "1.7.2.1. Airlines & Air Freight",
+      "sources": []
+    },
+    {
+      "topic": "1.7.2.2. Shipping, Ports & Marine Transport",
+      "sources": []
+    },
+    {
+      "topic": "1.7.2.3. Road & Rail Transport",
+      "sources": []
+    },
+    {
+      "topic": "1.7.2.4. Logistics & Warehousing Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.7.3. Machinery & Industrial Products",
+      "sources": []
+    },
+    {
+      "topic": "1.7.3.1. Construction & Heavy Machinery",
+      "sources": []
+    },
+    {
+      "topic": "1.7.3.2. Industrial Automation & Robotics",
+      "sources": []
+    },
+    {
+      "topic": "1.7.3.3. Electrical Equipment & Components",
+      "sources": []
+    },
+    {
+      "topic": "1.7.4. Business Services",
+      "sources": []
+    },
+    {
+      "topic": "1.7.4.1. Professional Services (Consulting, Legal - as businesses)",
+      "sources": []
+    },
+    {
+      "topic": "1.7.4.2. Staffing & Employment Services",
+      "sources": []
+    },
+    {
+      "topic": "1.7.4.3. Waste Management & Environmental Services",
+      "sources": []
+    },
+    {
+      "topic": "1.7.5. Industrial Conglomerates",
+      "sources": []
+    },
+    {
+      "topic": "1.8. Energy",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1. Traditional Energy",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1.1. Integrated Oil & Gas Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1.2. Oil & Gas Exploration & Production (E&P)",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1.3. Oil & Gas Refining, Marketing & Transportation (Midstream)",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1.4. Oil & Gas Equipment & Services",
+      "sources": []
+    },
+    {
+      "topic": "1.8.1.5. Coal & Consumable Fuels",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2. Renewable & Alternative Energy",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.1. Solar Power Companies (Manufacturers, Developers)",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.2. Wind Power Companies (Manufacturers, Developers)",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.3. Hydrogen Technology & Production",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.4. Biofuels & Biomass Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.5. Geothermal Energy Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.8.2.6. Battery Technology & Energy Storage Solutions (companies)",
+      "sources": []
+    },
+    {
+      "topic": "1.9. Utilities",
+      "sources": []
+    },
+    {
+      "topic": "1.9.1. Electric Utilities",
+      "sources": []
+    },
+    {
+      "topic": "1.9.2. Water Utilities",
+      "sources": []
+    },
+    {
+      "topic": "1.9.3. Gas Utilities (Distribution)",
+      "sources": []
+    },
+    {
+      "topic": "1.9.4. Multi-Utilities (Combined Electric, Gas, Water)",
+      "sources": []
+    },
+    {
+      "topic": "1.9.5. Independent Power Producers & Renewable Energy Utilities",
+      "sources": []
+    },
+    {
+      "topic": "1.10. Materials",
+      "sources": []
+    },
+    {
+      "topic": "1.10.1. Chemicals",
+      "sources": []
+    },
+    {
+      "topic": "1.10.1.1. Commodity Chemicals",
+      "sources": []
+    },
+    {
+      "topic": "1.10.1.2. Specialty Chemicals (e.g., Adhesives, Coatings, Advanced Materials)",
+      "sources": []
+    },
+    {
+      "topic": "1.10.1.3. Fertilizers & Agricultural Chemicals",
+      "sources": []
+    },
+    {
+      "topic": "1.10.1.4. Industrial Gases",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2. Metals & Mining",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2.1. Diversified Mining Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2.2. Gold & Precious Metals Mining",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2.3. Steel & Iron Ore Producers",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2.4. Copper & Base Metals Mining",
+      "sources": []
+    },
+    {
+      "topic": "1.10.2.5. Lithium & Critical Minerals Mining",
+      "sources": []
+    },
+    {
+      "topic": "1.10.3. Construction Materials (Cement, Aggregates, Bricks)",
+      "sources": []
+    },
+    {
+      "topic": "1.10.4. Forest Products & Packaging",
+      "sources": []
+    },
+    {
+      "topic": "1.10.4.1. Paper & Pulp Products",
+      "sources": []
+    },
+    {
+      "topic": "1.10.4.2. Lumber & Wood Products",
+      "sources": []
+    },
+    {
+      "topic": "1.10.4.3. Containers & Packaging (Paper, Metal, Glass)",
+      "sources": []
+    },
+    {
+      "topic": "1.11. Real Estate (Sector)",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1. Real Estate Investment Trusts (REITs)",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.1. Industrial & Logistics REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.2. Office REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.3. Retail REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.4. Residential REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.5. Data Center REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.6. Healthcare REITs",
+      "sources": []
+    },
+    {
+      "topic": "1.11.1.7. Specialized & Diversified REITs (e.g., Cell Towers, Timberland)",
+      "sources": []
+    },
+    {
+      "topic": "1.11.2. Real Estate Development & Operations Companies",
+      "sources": []
+    },
+    {
+      "topic": "1.11.3. Real Estate Services (Brokerage, Management - as businesses)",
+      "sources": []
+    },
+    {
+      "topic": "2. Digital Assets & Blockchain Technology",
+      "sources": []
+    },
+    {
+      "topic": "2.1. Cryptocurrencies",
+      "sources": []
+    },
+    {
+      "topic": "2.1.1. Major Cryptocurrencies (e.g., Bitcoin, Ethereum)",
+      "sources": []
+    },
+    {
+      "topic": "2.1.2. Altcoins (Categorized by Market Cap or Use Case if desired, e.g., Smart Contract Platforms, Oracles)",
+      "sources": []
+    },
+    {
+      "topic": "2.1.3. Stablecoins",
+      "sources": []
+    },
+    {
+      "topic": "2.1.3.1. Fiat-Collateralized Stablecoins",
+      "sources": []
+    },
+    {
+      "topic": "2.1.3.2. Crypto-Collateralized Stablecoins",
+      "sources": []
+    },
+    {
+      "topic": "2.1.3.3. Algorithmic Stablecoins",
+      "sources": []
+    },
+    {
+      "topic": "2.1.4. Privacy-Focused Cryptocurrencies",
+      "sources": []
+    },
+    {
+      "topic": "2.1.5. Meme Coins & Community-Driven Tokens",
+      "sources": []
+    },
+    {
+      "topic": "2.2. Decentralized Finance (DeFi)",
+      "sources": []
+    },
+    {
+      "topic": "2.2.1. Lending & Borrowing Protocols",
+      "sources": []
+    },
+    {
+      "topic": "2.2.2. Decentralized Exchanges (DEXs) & Liquidity Pools",
+      "sources": []
+    },
+    {
+      "topic": "2.2.3. Yield Aggregators & Staking Platforms",
+      "sources": []
+    },
+    {
+      "topic": "2.2.4. Decentralized Insurance (DeIns)",
+      "sources": []
+    },
+    {
+      "topic": "2.2.5. DeFi Derivatives, Synthetics & Options",
+      "sources": []
+    },
+    {
+      "topic": "2.2.6. Real World Asset (RWA) Tokenization in DeFi",
+      "sources": []
+    },
+    {
+      "topic": "2.3. Non-Fungible Tokens (NFTs) & Metaverse",
+      "sources": []
+    },
+    {
+      "topic": "2.3.1. NFT Marketplaces & Platforms",
+      "sources": []
+    },
+    {
+      "topic": "2.3.2. Digital Art, Collectibles & Profile Pictures (PFPs)",
+      "sources": []
+    },
+    {
+      "topic": "2.3.3. Blockchain Gaming (Play-to-Earn, GameFi) & Gaming NFTs",
+      "sources": []
+    },
+    {
+      "topic": "2.3.4. Metaverse Platforms & Virtual Land",
+      "sources": []
+    },
+    {
+      "topic": "2.3.5. Utility NFTs (e.g., Memberships, Access, Tickets)",
+      "sources": []
+    },
+    {
+      "topic": "2.4. Blockchain & Web3 Infrastructure",
+      "sources": []
+    },
+    {
+      "topic": "2.4.1. Layer 1 (L1) Blockchain Protocols (beyond major cryptos if distinct focus)",
+      "sources": []
+    },
+    {
+      "topic": "2.4.2. Layer 2 (L2) Scaling Solutions & Networks",
+      "sources": []
+    },
+    {
+      "topic": "2.4.3. Cross-Chain Interoperability & Bridges",
+      "sources": []
+    },
+    {
+      "topic": "2.4.4. Oracles & Data Providers for Blockchains",
+      "sources": []
+    },
+    {
+      "topic": "2.4.5. Decentralized Identity & Reputation Systems",
+      "sources": []
+    },
+    {
+      "topic": "2.4.6. Decentralized Storage Solutions",
+      "sources": []
+    },
+    {
+      "topic": "2.4.7. Blockchain Development Tools & Platforms",
+      "sources": []
+    },
+    {
+      "topic": "2.5. Crypto-Related Companies & Services",
+      "sources": []
+    },
+    {
+      "topic": "2.5.1. Centralized Crypto Exchanges & Custodians",
+      "sources": []
+    },
+    {
+      "topic": "2.5.2. Crypto Mining Companies & Equipment Providers",
+      "sources": []
+    },
+    {
+      "topic": "2.5.3. Blockchain Development & Consulting Firms",
+      "sources": []
+    },
+    {
+      "topic": "2.5.4. Crypto Investment Funds & Trusts (news about their activities/holdings)",
+      "sources": []
+    },
+    {
+      "topic": "2.5.5. Crypto Payment Processors",
+      "sources": []
+    },
+    {
+      "topic": "3. Commodities & Natural Resources (Direct Price Movements, Supply/Demand News)",
+      "sources": []
+    },
+    {
+      "topic": "3.1. Energy Commodities",
+      "sources": []
+    },
+    {
+      "topic": "3.1.1. Crude Oil (WTI, Brent) & Refined Products (Gasoline, Diesel)",
+      "sources": []
+    },
+    {
+      "topic": "3.1.2. Natural Gas (Henry Hub, TTF, LNG)",
+      "sources": []
+    },
+    {
+      "topic": "3.1.3. Coal (Thermal, Metallurgical)",
+      "sources": []
+    },
+    {
+      "topic": "3.1.4. Uranium & Nuclear Fuel",
+      "sources": []
+    },
+    {
+      "topic": "3.1.5. Carbon Markets & Emissions Credits",
+      "sources": []
+    },
+    {
+      "topic": "3.2. Metals",
+      "sources": []
+    },
+    {
+      "topic": "3.2.1. Precious Metals",
+      "sources": []
+    },
+    {
+      "topic": "3.2.1.1. Gold",
+      "sources": []
+    },
+    {
+      "topic": "3.2.1.2. Silver",
+      "sources": []
+    },
+    {
+      "topic": "3.2.1.3. Platinum Group Metals (Platinum, Palladium)",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2. Industrial & Base Metals",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2.1. Copper",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2.2. Aluminum",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2.3. Nickel",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2.4. Zinc & Lead",
+      "sources": []
+    },
+    {
+      "topic": "3.2.2.5. Iron Ore",
+      "sources": []
+    },
+    {
+      "topic": "3.2.3. Critical & Strategic Minerals (Battery Metals, Rare Earth Elements)",
+      "sources": []
+    },
+    {
+      "topic": "3.2.3.1. Lithium",
+      "sources": []
+    },
+    {
+      "topic": "3.2.3.2. Cobalt",
+      "sources": []
+    },
+    {
+      "topic": "3.2.3.3. Rare Earth Elements (e.g., Neodymium, Dysprosium)",
+      "sources": []
+    },
+    {
+      "topic": "3.3. Agricultural Commodities",
+      "sources": []
+    },
+    {
+      "topic": "3.3.1. Grains & Oilseeds (e.g., Corn, Wheat, Soybeans, Rice)",
+      "sources": []
+    },
+    {
+      "topic": "3.3.2. Soft Commodities (e.g., Coffee, Cocoa, Sugar, Cotton, Orange Juice)",
+      "sources": []
+    },
+    {
+      "topic": "3.3.3. Livestock & Dairy (e.g., Live Cattle, Lean Hogs, Milk)",
+      "sources": []
+    },
+    {
+      "topic": "3.4. Other Commodities",
+      "sources": []
+    },
+    {
+      "topic": "3.4.1. Lumber & Forestry Products (as commodities)",
+      "sources": []
+    },
+    {
+      "topic": "3.4.2. Water (Rights, Scarcity Issues, Related Derivatives)",
+      "sources": []
+    },
+    {
+      "topic": "4. Real Assets (Direct Investment in Physical Assets, beyond listed equities/REITs)",
+      "sources": []
+    },
+    {
+      "topic": "4.1. Real Estate (Direct & Private)",
+      "sources": []
+    },
+    {
+      "topic": "4.1.1. Residential Property Markets (Key Cities/Regions)",
+      "sources": []
+    },
+    {
+      "topic": "4.1.2. Commercial Property (Office, Retail, Industrial - Private Markets)",
+      "sources": []
+    },
+    {
+      "topic": "4.1.3. Agricultural Land (Farmland)",
+      "sources": []
+    },
+    {
+      "topic": "4.1.4. Timberland & Forestry Investments",
+      "sources": []
+    },
+    {
+      "topic": "4.1.5. Real Estate Crowdfunding & Private Funds",
+      "sources": []
+    },
+    {
+      "topic": "4.2. Infrastructure (Private & Project Finance)",
+      "sources": []
+    },
+    {
+      "topic": "4.2.1. Transportation Infrastructure (Roads, Airports, Ports)",
+      "sources": []
+    },
+    {
+      "topic": "4.2.2. Energy Infrastructure (Pipelines, Storage, Transmission Grids)",
+      "sources": []
+    },
+    {
+      "topic": "4.2.3. Water & Waste Management Infrastructure",
+      "sources": []
+    },
+    {
+      "topic": "4.2.4. Telecommunications Infrastructure (Towers, Fiber Networks - private)",
+      "sources": []
+    },
+    {
+      "topic": "4.2.5. Social Infrastructure (Hospitals, Schools - private finance initiatives)",
+      "sources": []
+    },
+    {
+      "topic": "4.3. Collectibles & Passion Assets (if significant investment news)",
+      "sources": []
+    },
+    {
+      "topic": "4.3.1. Art & Antiques Market",
+      "sources": []
+    },
+    {
+      "topic": "4.3.2. Fine Wine & Spirits",
+      "sources": []
+    },
+    {
+      "topic": "4.3.3. Classic Cars & Luxury Vehicles",
+      "sources": []
+    },
+    {
+      "topic": "4.3.4. Rare Watches & Jewelry",
+      "sources": []
+    },
+    {
+      "topic": "4.3.5. Memorabilia & High-Value Collectibles",
+      "sources": []
+    },
+    {
+      "topic": "5. Fixed Income & Credit Markets (News on Issuances, Yields, Credit Quality)",
+      "sources": []
+    },
+    {
+      "topic": "5.1. Government & Sovereign Debt",
+      "sources": []
+    },
+    {
+      "topic": "5.1.1. Developed Market Sovereign Bonds (e.g., US Treasuries, German Bunds, UK Gilts, JGBs)",
+      "sources": []
+    },
+    {
+      "topic": "5.1.2. Emerging Market Sovereign Bonds (USD & Local Currency)",
+      "sources": []
+    },
+    {
+      "topic": "5.1.3. Supranational & Agency Bonds",
+      "sources": []
+    },
+    {
+      "topic": "5.1.4. Inflation-Linked Bonds (TIPS, Linkers)",
+      "sources": []
+    },
+    {
+      "topic": "5.1.5. Municipal Bonds (US focus, or regional equivalents)",
+      "sources": []
+    },
+    {
+      "topic": "5.2. Corporate Debt",
+      "sources": []
+    },
+    {
+      "topic": "5.2.1. Investment Grade Corporate Bonds (by region/key sectors)",
+      "sources": []
+    },
+    {
+      "topic": "5.2.2. High-Yield (Junk) Corporate Bonds (by region/key sectors)",
+      "sources": []
+    },
+    {
+      "topic": "5.2.3. Convertible Bonds",
+      "sources": []
+    },
+    {
+      "topic": "5.2.4. Private Credit & Direct Lending Market",
+      "sources": []
+    },
+    {
+      "topic": "5.2.5. Green, Social & Sustainability Bonds (Corporate & Sovereign)",
+      "sources": []
+    },
+    {
+      "topic": "5.3. Securitized Products & Structured Credit",
+      "sources": []
+    },
+    {
+      "topic": "5.3.1. Mortgage-Backed Securities (MBS - Residential & Commercial)",
+      "sources": []
+    },
+    {
+      "topic": "5.3.2. Asset-Backed Securities (ABS - e.g., Auto Loans, Credit Cards)",
+      "sources": []
+    },
+    {
+      "topic": "5.3.3. Collateralized Loan Obligations (CLOs)",
+      "sources": []
+    },
+    {
+      "topic": "5.4. Money Markets & Short-Term Debt",
+      "sources": []
+    },
+    {
+      "topic": "5.4.1. Treasury Bills, Commercial Paper",
+      "sources": []
+    },
+    {
+      "topic": "5.4.2. Repurchase Agreements (Repo Market)",
+      "sources": []
+    },
+    {
+      "topic": "5.5. Credit Market Dynamics",
+      "sources": []
+    },
+    {
+      "topic": "5.5.1. Credit Spreads & Yield Curve Analysis",
+      "sources": []
+    },
+    {
+      "topic": "5.5.2. Default Rates & Credit Rating Agency News (Upgrades/Downgrades)",
+      "sources": []
+    },
+    {
+      "topic": "5.5.3. New Issuance Trends & Market Liquidity",
+      "sources": []
+    },
+    {
+      "topic": "6. Currencies & Foreign Exchange (Forex)",
+      "sources": []
+    },
+    {
+      "topic": "6.1. Major Currencies & Pairs",
+      "sources": []
+    },
+    {
+      "topic": "6.1.1. US Dollar (USD) & DXY Index",
+      "sources": []
+    },
+    {
+      "topic": "6.1.2. Euro (EUR) (e.g., EUR/USD)",
+      "sources": []
+    },
+    {
+      "topic": "6.1.3. Japanese Yen (JPY) (e.g., USD/JPY)",
+      "sources": []
+    },
+    {
+      "topic": "6.1.4. British Pound (GBP) (e.g., GBP/USD)",
+      "sources": []
+    },
+    {
+      "topic": "6.1.5. Commodity Currencies (AUD, CAD, NZD)",
+      "sources": []
+    },
+    {
+      "topic": "6.1.6. Safe Haven Currencies (CHF)",
+      "sources": []
+    },
+    {
+      "topic": "6.2. Emerging Market (EM) Currencies",
+      "sources": []
+    },
+    {
+      "topic": "6.2.1. Chinese Yuan (CNY/CNH)",
+      "sources": []
+    },
+    {
+      "topic": "6.2.2. Indian Rupee (INR)",
+      "sources": []
+    },
+    {
+      "topic": "6.2.3. Brazilian Real (BRL), Mexican Peso (MXN), Other LatAm",
+      "sources": []
+    },
+    {
+      "topic": "6.2.4. South African Rand (ZAR), Turkish Lira (TRY), Other EMEA",
+      "sources": []
+    },
+    {
+      "topic": "6.2.5. Other Asian Currencies (KRW, SGD, TWD)",
+      "sources": []
+    },
+    {
+      "topic": "6.3. Forex Market Drivers & Analysis",
+      "sources": []
+    },
+    {
+      "topic": "6.3.1. Impact of Monetary Policy on FX",
+      "sources": []
+    },
+    {
+      "topic": "6.3.2. Economic Data Releases & FX Volatility",
+      "sources": []
+    },
+    {
+      "topic": "6.3.3. Geopolitical Influences on Currencies",
+      "sources": []
+    },
+    {
+      "topic": "6.3.4. Capital Flows & FX Interventions",
+      "sources": []
+    },
+    {
+      "topic": "6.4. Central Bank Digital Currencies (CBDCs) (Developments & FX Implications)",
+      "sources": []
+    },
+    {
+      "topic": "7. Global Macroeconomic & Geopolitical Landscape",
+      "sources": []
+    },
+    {
+      "topic": "7.1. Economic Indicators & Outlook",
+      "sources": []
+    },
+    {
+      "topic": "7.1.1. Global Economic Growth (GDP Forecasts & Revisions)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.2. Regional Economies (North America, Europe, Asia-Pacific, EM Blocs)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.2.1. United States Economy",
+      "sources": []
+    },
+    {
+      "topic": "7.1.2.2. Eurozone Economy",
+      "sources": []
+    },
+    {
+      "topic": "7.1.2.3. Chinese Economy",
+      "sources": []
+    },
+    {
+      "topic": "7.1.2.4. Other Major Economies (UK, Japan, India, Brazil, etc.)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.3. Inflation & Deflation Trends (CPI, PPI)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.4. Employment & Labor Market Conditions (Jobs reports, Wages)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.5. Consumer & Business Sentiment (Confidence Indices, PMIs)",
+      "sources": []
+    },
+    {
+      "topic": "7.1.6. Housing Market Trends (Prices, Sales, Construction)",
+      "sources": []
+    },
+    {
+      "topic": "7.2. Monetary Policy & Central Banks",
+      "sources": []
+    },
+    {
+      "topic": "7.2.1. Federal Reserve (FOMC Decisions, Speeches)",
+      "sources": []
+    },
+    {
+      "topic": "7.2.2. European Central Bank (ECB Policies, Statements)",
+      "sources": []
+    },
+    {
+      "topic": "7.2.3. Bank of England (BoE MPC Updates)",
+      "sources": []
+    },
+    {
+      "topic": "7.2.4. Bank of Japan (BoJ Policies)",
+      "sources": []
+    },
+    {
+      "topic": "7.2.5. Other Major Central Banks (SNB, RBA, RBNZ, PBoC, RBI etc.)",
+      "sources": []
+    },
+    {
+      "topic": "7.2.6. Interest Rate Trends & Yield Curve Dynamics",
+      "sources": []
+    },
+    {
+      "topic": "7.2.7. Quantitative Easing/Tightening (QE/QT) Programs",
+      "sources": []
+    },
+    {
+      "topic": "7.3. Fiscal Policy & Government Finance",
+      "sources": []
+    },
+    {
+      "topic": "7.3.1. Government Budgets, Spending & Stimulus Packages",
+      "sources": []
+    },
+    {
+      "topic": "7.3.2. Taxation Policies & Reforms",
+      "sources": []
+    },
+    {
+      "topic": "7.3.3. National Debt Levels & Sovereign Creditworthiness",
+      "sources": []
+    },
+    {
+      "topic": "7.4. International Trade & Global Supply Chains",
+      "sources": []
+    },
+    {
+      "topic": "7.4.1. Trade Agreements, Negotiations & Disputes",
+      "sources": []
+    },
+    {
+      "topic": "7.4.2. Tariffs, Sanctions & Embargoes",
+      "sources": []
+    },
+    {
+      "topic": "7.4.3. Supply Chain Disruptions & Resilience Efforts",
+      "sources": []
+    },
+    {
+      "topic": "7.4.4. Globalization vs. Deglobalization Trends",
+      "sources": []
+    },
+    {
+      "topic": "7.5. Geopolitical Events & Risks",
+      "sources": []
+    },
+    {
+      "topic": "7.5.1. Elections & Political Transitions (Major Economies)",
+      "sources": []
+    },
+    {
+      "topic": "7.5.2. International Relations & Diplomacy (Summits, Alliances)",
+      "sources": []
+    },
+    {
+      "topic": "7.5.3. Regional Conflicts, Instability & Terrorism",
+      "sources": []
+    },
+    {
+      "topic": "7.5.4. Global Governance & International Organizations (UN, WTO, WHO, IMF, World Bank)",
+      "sources": []
+    },
+    {
+      "topic": "7.6. ESG Factors (Macro Perspective)",
+      "sources": []
+    },
+    {
+      "topic": "7.6.1. Climate Change Policy & Global Agreements",
+      "sources": []
+    },
+    {
+      "topic": "7.6.2. Energy Transition (Global Policies & Investment Trends)",
+      "sources": []
+    },
+    {
+      "topic": "7.6.3. Social Inequality & Demographics (Global Impact)",
+      "sources": []
+    },
+    {
+      "topic": "7.6.4. Regulatory Trends in ESG",
+      "sources": []
+    },
+    {
+      "topic": "8. Thematic & Emerging Investment Areas (Cross-sector or novel themes)",
+      "sources": []
+    },
+    {
+      "topic": "8.1. Disruptive Innovation Themes",
+      "sources": []
+    },
+    {
+      "topic": "8.1.1. Artificial Intelligence (Broad, cross-sector impact beyond specific AI companies)",
+      "sources": []
+    },
+    {
+      "topic": "8.1.2. Internet of Things (IoT) & Connectivity",
+      "sources": []
+    },
+    {
+      "topic": "8.1.3. Robotics & Automation (Industrial & Consumer)",
+      "sources": []
+    },
+    {
+      "topic": "8.1.4. Space Economy & Commercialization",
+      "sources": []
+    },
+    {
+      "topic": "8.1.5. Quantum Computing Developments",
+      "sources": []
+    },
+    {
+      "topic": "8.1.6. Advanced Materials & Nanotechnology",
+      "sources": []
+    },
+    {
+      "topic": "8.1.7. Longevity & Anti-Aging Research",
+      "sources": []
+    },
+    {
+      "topic": "8.2. Sustainability & ESG Investing Themes",
+      "sources": []
+    },
+    {
+      "topic": "8.2.1. Renewable Energy Transition (Investment flows, policy impact)",
+      "sources": []
+    },
+    {
+      "topic": "8.2.2. Circular Economy & Waste Reduction",
+      "sources": []
+    },
+    {
+      "topic": "8.2.3. Sustainable Agriculture & Food Technology (AgriTech)",
+      "sources": []
+    },
+    {
+      "topic": "8.2.4. Water Scarcity Solutions & Technologies",
+      "sources": []
+    },
+    {
+      "topic": "8.2.5. Green Buildings & Sustainable Infrastructure",
+      "sources": []
+    },
+    {
+      "topic": "8.2.6. Biodiversity & Natural Capital Investing",
+      "sources": []
+    },
+    {
+      "topic": "8.2.7. Impact Investing (Measurable social/environmental outcomes)",
+      "sources": []
+    },
+    {
+      "topic": "8.3. Socio-Demographic Investment Themes",
+      "sources": []
+    },
+    {
+      "topic": "8.3.1. Aging Population & Silver Economy (Healthcare, Leisure, Housing)",
+      "sources": []
+    },
+    {
+      "topic": "8.3.2. Future of Work & Education Technology (EdTech)",
+      "sources": []
+    },
+    {
+      "topic": "8.3.3. Health, Wellness & Lifestyle Trends",
+      "sources": []
+    },
+    {
+      "topic": "8.3.4. Urbanization, Smart Cities & Future Mobility",
+      "sources": []
+    },
+    {
+      "topic": "8.3.5. Pet Economy",
+      "sources": []
+    },
+    {
+      "topic": "8.4. Geographically Focused Investment Themes",
+      "sources": []
+    },
+    {
+      "topic": "8.4.1. Investing in Emerging Markets (Specific countries or regions as themes)",
+      "sources": []
+    },
+    {
+      "topic": "8.4.2. Frontier Markets Opportunities & Risks",
+      "sources": []
+    },
+    {
+      "topic": "8.4.3. Specific Regional Growth Stories (e.g., ASEAN, Africa Rising)",
+      "sources": []
+    },
+    {
+      "topic": "9. Private Markets & Alternative Strategies (Focus on deal news, fundraising, strategy performance)",
+      "sources": []
+    },
+    {
+      "topic": "9.1. Private Equity",
+      "sources": []
+    },
+    {
+      "topic": "9.1.1. Buyout & LBO Market (Mega-deals, Mid-market)",
+      "sources": []
+    },
+    {
+      "topic": "9.1.2. Growth Equity & Expansion Capital",
+      "sources": []
+    },
+    {
+      "topic": "9.1.3. Venture Capital (Seed, Early, Late Stage, Unicorns)",
+      "sources": []
+    },
+    {
+      "topic": "9.1.3.1. VC Investment by Sector (e.g., FinTech VC, HealthTech VC)",
+      "sources": []
+    },
+    {
+      "topic": "9.1.3.2. VC Fundraising & Exits (IPOs, M&A)",
+      "sources": []
+    },
+    {
+      "topic": "9.1.4. Secondaries Market (PE & VC)",
+      "sources": []
+    },
+    {
+      "topic": "9.2. Private Credit & Debt Strategies",
+      "sources": []
+    },
+    {
+      "topic": "9.2.1. Direct Lending Funds",
+      "sources": []
+    },
+    {
+      "topic": "9.2.2. Distressed Debt & Special Situations",
+      "sources": []
+    },
+    {
+      "topic": "9.2.3. Mezzanine Financing",
+      "sources": []
+    },
+    {
+      "topic": "9.3. Hedge Fund Strategies & Activity (Focus on market impact, major positions, trends)",
+      "sources": []
+    },
+    {
+      "topic": "9.3.1. Equity Long/Short Strategies (Sector bets, Activism)",
+      "sources": []
+    },
+    {
+      "topic": "9.3.2. Global Macro Hedge Funds (Major calls, Currency/Rate bets)",
+      "sources": []
+    },
+    {
+      "topic": "9.3.3. Event-Driven Strategies (Merger Arbitrage, Activism)",
+      "sources": []
+    },
+    {
+      "topic": "9.3.4. Credit Hedge Funds",
+      "sources": []
+    },
+    {
+      "topic": "9.3.5. Quant & CTA Strategies (Trends, Performance)",
+      "sources": []
+    },
+    {
+      "topic": "9.4. Fundraising & Institutional Allocations",
+      "sources": []
+    },
+    {
+      "topic": "9.4.1. Pension Fund & Endowment Investment Trends",
+      "sources": []
+    },
+    {
+      "topic": "9.4.2. Sovereign Wealth Fund Activity",
+      "sources": []
+    },
+    {
+      "topic": "9.4.3. Family Office Investment Strategies",
+      "sources": []
+    }
+  ]
+  
