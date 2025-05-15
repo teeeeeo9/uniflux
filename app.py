@@ -74,7 +74,7 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 SOURCES_FILE = "sources.json"  # File to store news sources
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 def ensure_event_loop():
     """
@@ -877,6 +877,347 @@ async def get_subscribers():
             "success": False,
             "error": f"Failed to retrieve subscribers: {str(e)}"
         }), 500
+
+@app.route('/upload-telegram-export', methods=['POST'])
+async def upload_telegram_export():
+    """
+    API endpoint to handle uploaded Telegram export files.
+    
+    Request:
+        - multipart/form-data with a 'file' field containing the JSON export
+        
+    Response Format (JSON):
+    {
+        "success": true,
+        "channels": [
+            {
+                "id": 1234567890,
+                "name": "Channel Name",
+                "type": "public_channel"
+            },
+            ...
+        ]
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /upload-telegram-export - IP: {user_ip}")
+    logger.debug(f"Request content type: {request.content_type}")
+    
+    try:
+        # Check if file exists in request
+        if 'file' not in request.files:
+            logger.warning(f"REQUEST [{request_id}] - No file part in the request")
+            response = jsonify({
+                "success": False,
+                "error": "No file uploaded"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+            
+        file = request.files['file']
+        
+        # Check if file has a name
+        if file.filename == '':
+            logger.warning(f"REQUEST [{request_id}] - Empty filename")
+            response = jsonify({
+                "success": False,
+                "error": "No file selected"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+        
+        # Log the file info for debugging
+        logger.debug(f"File received: {file.filename}, Content-Type: {file.content_type}")
+            
+        # Check if file is valid JSON
+        try:
+            file_content = file.read()
+            logger.debug(f"Read {len(file_content)} bytes from file")
+            export_data = json.loads(file_content.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            logger.error(f"REQUEST [{request_id}] - Invalid JSON file: {str(e)}")
+            response = jsonify({
+                "success": False,
+                "error": f"Invalid JSON file format: {str(e)}"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+        except Exception as e:
+            logger.error(f"REQUEST [{request_id}] - Error reading file: {str(e)}")
+            response = jsonify({
+                "success": False,
+                "error": f"Error reading file: {str(e)}"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+            
+        # Extract channel information from the export
+        channels = []
+        
+        # Process "chats" section if it exists
+        if 'chats' in export_data and 'list' in export_data['chats']:
+            for chat in export_data['chats']['list']:
+                if chat.get('type') in ['public_channel', 'private_channel', 'private_supergroup', 'public_supergroup']:
+                    channels.append({
+                        'id': chat.get('id'),
+                        'name': chat.get('name', 'Unknown Channel'),
+                        'type': chat.get('type')
+                    })
+        
+        # Process "left_chats" section if it exists
+        if 'left_chats' in export_data and 'list' in export_data['left_chats']:
+            for chat in export_data['left_chats']['list']:
+                if chat.get('type') in ['public_channel', 'private_channel', 'private_supergroup', 'public_supergroup']:
+                    channels.append({
+                        'id': chat.get('id'),
+                        'name': chat.get('name', 'Unknown Channel'),
+                        'type': chat.get('type'),
+                        'left': True
+                    })
+        
+        if not channels:
+            logger.warning(f"REQUEST [{request_id}] - No channels found in the export")
+            response = jsonify({
+                "success": False,
+                "error": "No channels found in the export file"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+            
+        logger.info(f"RESPONSE [{request_id}] - Found {len(channels)} channels in Telegram export")
+        
+        response = jsonify({
+            "success": True,
+            "channels": channels
+        })
+        response.headers['Content-Type'] = 'application/json'
+        return response, 200
+        
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to process Telegram export: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        response = jsonify({
+            "success": False,
+            "error": str(e)
+        })
+        response.headers['Content-Type'] = 'application/json'
+        return response, 500
+
+@app.route('/cluster-channels', methods=['POST'])
+async def cluster_channels():
+    """
+    API endpoint to cluster channels into topics using Gemini Flash.
+    
+    Request Format (JSON):
+    {
+        "channels": [
+            {
+                "id": 1234567890,
+                "name": "Channel Name",
+                "type": "public_channel"
+            },
+            ...
+        ]
+    }
+    
+    Response Format (JSON):
+    {
+        "success": true,
+        "topics": [
+            {
+                "topic": "Finance",
+                "channels": [
+                    {
+                        "id": 1234567890,
+                        "name": "Channel Name",
+                        "type": "public_channel"
+                    },
+                    ...
+                ]
+            },
+            ...
+        ]
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /cluster-channels - IP: {user_ip}")
+    
+    try:
+        # Get JSON data from request body
+        data = request.get_json()
+        
+        if not data or 'channels' not in data or not data['channels']:
+            response = jsonify({
+                "success": False,
+                "error": "No channels provided"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+            
+        channels = data['channels']
+        
+        logger.info(f"REQUEST [{request_id}] - Clustering {len(channels)} channels")
+        
+        # Import Gemini API
+        from google import genai
+        
+        # Configure Gemini API
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_api_key:
+            response = jsonify({
+                "success": False,
+                "error": "Gemini API key not configured"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 500
+            
+        client = genai.Client(api_key=gemini_api_key)
+        model_name = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')
+        
+        # Prepare the prompt for Gemini
+        channel_names = [f"{i+1}. {channel['name']}" for i, channel in enumerate(channels)]
+        channel_list = "\n".join(channel_names)
+        
+        prompt = f"""
+        I have a list of Telegram channels that I need to categorize into coherent topic groups.
+        Please analyze these channel names and group them into 3-8 meaningful topic categories.
+        For each channel, assign it to the most appropriate category.
+        
+        Channel names:
+        {channel_list}
+        
+        Return the results as a JSON array where each object represents a topic category with the following structure:
+        [
+            {{
+                "topic": "Category name (e.g., Crypto News, Programming, Politics, etc.)",
+                "channel_indices": [0, 2, 5]  // Indices of channels (0-based) that belong to this category
+            }},
+            ...
+        ]
+        
+        Consider that some channels might have names in languages other than English, but try to infer their category from any identifiable words or patterns.
+        Use broad, intuitive categories that would make sense for news aggregation.
+        """
+        
+        logger.info(f"REQUEST [{request_id}] - Sending clustering request to Gemini API using model: {model_name}")
+        
+        # Call Gemini API
+        response = await client.aio.models.generate_content(
+            model=model_name,
+            contents=prompt
+        )
+        
+        # Extract JSON from response
+        response_text = response.text
+        logger.debug(f"Gemini response: {response_text}")
+        
+        # Parse the JSON
+        try:
+            # Find JSON content (may be wrapped in markdown code blocks)
+            if "```json" in response_text:
+                json_start = response_text.find("```json") + 7
+                json_end = response_text.find("```", json_start)
+                json_str = response_text[json_start:json_end].strip()
+            elif "```" in response_text:
+                json_start = response_text.find("```") + 3
+                json_end = response_text.find("```", json_start)
+                json_str = response_text[json_start:json_end].strip()
+            else:
+                json_str = response_text
+                
+            # Parse the JSON
+            topics_data = json.loads(json_str)
+            
+            # Validate the response structure
+            if not isinstance(topics_data, list):
+                raise ValueError("Expected a list of topic categories")
+                
+            # Convert the format to include full channel objects
+            topics_result = []
+            for topic_item in topics_data:
+                topic_name = topic_item.get('topic', 'Miscellaneous')
+                channel_indices = topic_item.get('channel_indices', [])
+                
+                topic_channels = []
+                for idx in channel_indices:
+                    if 0 <= idx < len(channels):
+                        topic_channels.append(channels[idx])
+                
+                topics_result.append({
+                    "topic": topic_name,
+                    "channels": topic_channels
+                })
+            
+            logger.info(f"RESPONSE [{request_id}] - Clustered channels into {len(topics_result)} topics")
+            
+            api_response = jsonify({
+                "success": True,
+                "topics": topics_result
+            })
+            api_response.headers['Content-Type'] = 'application/json'
+            return api_response, 200
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"ERROR [{request_id}] - Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Raw response: {response_text}")
+            api_response = jsonify({
+                "success": False,
+                "error": "Failed to parse AI response"
+            })
+            api_response.headers['Content-Type'] = 'application/json'
+            return api_response, 500
+            
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to cluster channels: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        api_response = jsonify({
+            "success": False,
+            "error": str(e)
+        })
+        api_response.headers['Content-Type'] = 'application/json'
+        return api_response, 500
+
+def convert_telegram_channel_to_url(channel_id):
+    """
+    Convert a Telegram channel ID to a source URL.
+    
+    Args:
+        channel_id: Telegram channel ID (numeric or string)
+        
+    Returns:
+        str: Telegram channel URL in the format https://t.me/channelname
+    """
+    return f"https://t.me/{channel_id}"
 
 if __name__ == '__main__':
     logger.info("Application starting up")

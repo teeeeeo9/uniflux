@@ -27,56 +27,70 @@ const Settings = ({ onFetchSummaries }) => {
   const [subscriptionSubmitted, setSubscriptionSubmitted] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState('');
 
+  // State for active tab
+  const [activeTab, setActiveTab] = useState('default-sources');
+
+  // State for Telegram export
+  const [telegramFile, setTelegramFile] = useState(null);
+  const [fileError, setFileError] = useState('');
+  const [channels, setChannels] = useState([]);
+  const [channelTopics, setChannelTopics] = useState([]);
+  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [clustering, setClustering] = useState(false);
+
   // Fetch sources from API on component mount
   useEffect(() => {
-    const fetchSources = async () => {
-      setLoading(true);
-      try {
-        console.log('Fetching sources from /sources endpoint');
-        const response = await fetch(`${API_URL}/sources`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true'
-          }
-        });
-        
-        if (!response.ok) {
-          // Try to get detailed error message
-          let errorMsg = `Server error: ${response.status}`;
-          try {
-            const errorData = await response.json();
-            if (errorData && errorData.error) {
-              errorMsg = errorData.error;
-            }
-          } catch (e) {
-            const text = await response.text();
-            if (text) errorMsg += ` - ${text}`;
-          }
-          throw new Error(errorMsg);
-        }
-        
-        const data = await response.json();
-        console.log('Sources response:', data);
-        setCategories(data.sources || {});
-        
-        // Initialize selected categories state
-        const initialSelectedCategories = {};
-        Object.keys(data.sources || {}).forEach(category => {
-          initialSelectedCategories[category] = false;
-        });
-        setSelectedCategories(initialSelectedCategories);
-      } catch (err) {
-        console.error('Error fetching sources:', err);
-        setError(err.message || 'Failed to fetch sources');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (activeTab === 'default-sources') {
+      fetchSources();
+    }
+  }, [activeTab]);
 
-    fetchSources();
-  }, []);
+  const fetchSources = async () => {
+    setLoading(true);
+    try {
+      console.log('Fetching sources from /sources endpoint');
+      const response = await fetch(`${API_URL}/sources`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      
+      if (!response.ok) {
+        // Try to get detailed error message
+        let errorMsg = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMsg = errorData.error;
+          }
+        } catch (e) {
+          const text = await response.text();
+          if (text) errorMsg += ` - ${text}`;
+        }
+        throw new Error(errorMsg);
+      }
+      
+      const data = await response.json();
+      console.log('Sources response:', data);
+      setCategories(data.sources || {});
+      
+      // Initialize selected categories state
+      const initialSelectedCategories = {};
+      Object.keys(data.sources || {}).forEach(category => {
+        initialSelectedCategories[category] = false;
+      });
+      setSelectedCategories(initialSelectedCategories);
+    } catch (err) {
+      console.error('Error fetching sources:', err);
+      setError(err.message || 'Failed to fetch sources');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePeriodChange = (e) => {
     setPeriod(e.target.value);
@@ -235,7 +249,188 @@ const Settings = ({ onFetchSummaries }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file type
+      if (file.type !== 'application/json') {
+        setFileError('Please upload a JSON file');
+        return;
+      }
+      
+      setTelegramFile(file);
+      setFileError('');
+    }
+  };
+
+  const handleChannelToggle = (channelId) => {
+    setSelectedChannels(prev => {
+      if (prev.includes(channelId)) {
+        return prev.filter(id => id !== channelId);
+      } else {
+        return [...prev, channelId];
+      }
+    });
+  };
+
+  const handleTopicToggle = (topic) => {
+    // Find all channel IDs in this topic
+    const channelIds = topic.channels.map(channel => channel.id);
+    
+    // Check if all channels in this topic are already selected
+    const allSelected = channelIds.every(id => selectedChannels.includes(id));
+    
+    if (allSelected) {
+      // Remove all channels in this topic
+      setSelectedChannels(prev => prev.filter(id => !channelIds.includes(id)));
+    } else {
+      // Add all channels in this topic that aren't already selected
+      setSelectedChannels(prev => {
+        const newSelected = [...prev];
+        channelIds.forEach(id => {
+          if (!newSelected.includes(id)) {
+            newSelected.push(id);
+          }
+        });
+        return newSelected;
+      });
+    }
+  };
+
+  // Check if all channels in a topic are selected
+  const isTopicSelected = (topic) => {
+    const topicChannelIds = topic.channels.map(channel => channel.id);
+    return topicChannelIds.every(id => selectedChannels.includes(id));
+  };
+
+  // Check if some (but not all) channels in a topic are selected
+  const isTopicPartiallySelected = (topic) => {
+    const topicChannelIds = topic.channels.map(channel => channel.id);
+    return topicChannelIds.some(id => selectedChannels.includes(id)) && 
+           !topicChannelIds.every(id => selectedChannels.includes(id));
+  };
+
+  const uploadTelegramExport = async () => {
+    if (!telegramFile) {
+      setFileError('Please select a file to upload');
+      return;
+    }
+    
+    setUploading(true);
+    setFileError('');
+    
+    try {
+      // Create FormData and append file
+      const formData = new FormData();
+      formData.append('file', telegramFile);
+      
+      // Upload the file to backend
+      const response = await fetch(`${API_URL}/upload-telegram-export`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      // Check content type before trying to parse as JSON
+      const contentType = response.headers.get('content-type');
+      if (!response.ok) {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        } else {
+          // If it's not JSON, get the text instead
+          const errorText = await response.text();
+          console.error('Server returned non-JSON response:', errorText.substring(0, 200) + '...');
+          throw new Error(`Server error: ${response.status}. The server did not return a valid JSON response.`);
+        }
+      }
+      
+      // Verify we have JSON before parsing
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        console.error('Server returned non-JSON response:', responseText.substring(0, 200) + '...');
+        throw new Error('The server returned an invalid response format.');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process the file');
+      }
+      
+      setChannels(data.channels);
+      
+      // Cluster the channels
+      await clusterChannels(data.channels);
+      
+    } catch (err) {
+      console.error('Error uploading Telegram export:', err);
+      setFileError(err.message || 'Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const clusterChannels = async (channelsData) => {
+    setClustering(true);
+    
+    try {
+      // Send channels to clustering endpoint
+      const response = await fetch(`${API_URL}/cluster-channels`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({ channels: channelsData })
+      });
+      
+      // Check content type before trying to parse as JSON
+      const contentType = response.headers.get('content-type');
+      if (!response.ok) {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        } else {
+          // If it's not JSON, get the text instead
+          const errorText = await response.text();
+          console.error('Server returned non-JSON response:', errorText.substring(0, 200) + '...');
+          throw new Error(`Server error: ${response.status}. The server did not return a valid JSON response.`);
+        }
+      }
+      
+      // Verify we have JSON before parsing
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text();
+        console.error('Server returned non-JSON response:', responseText.substring(0, 200) + '...');
+        throw new Error('The server returned an invalid response format.');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to cluster channels');
+      }
+      
+      setChannelTopics(data.topics);
+      
+      // Select all channels by default
+      const allChannelIds = channelsData.map(channel => channel.id);
+      setSelectedChannels(allChannelIds);
+      
+    } catch (err) {
+      console.error('Error clustering channels:', err);
+      setFileError(err.message || 'Failed to analyze channels');
+    } finally {
+      setClustering(false);
+    }
+  };
+
+  const handleDefaultSubmit = (e) => {
     e.preventDefault();
     
     // Combine selected sources from categories with valid custom sources
@@ -247,6 +442,33 @@ const Settings = ({ onFetchSummaries }) => {
     
     console.log('Generating summaries with settings:', { period, sources: allSources });
     onFetchSummaries({ period, sources: allSources });
+  };
+
+  const handleTelegramSubmit = (e) => {
+    e.preventDefault();
+    
+    if (selectedChannels.length === 0) {
+      setFileError('Please select at least one channel');
+      return;
+    }
+    
+    // Find the selected channel URLs
+    const selectedChannelData = [];
+    channelTopics.forEach(topic => {
+      topic.channels.forEach(channel => {
+        if (selectedChannels.includes(channel.id)) {
+          selectedChannelData.push(channel);
+        }
+      });
+    });
+    
+    // Convert Telegram channel IDs to t.me URLs
+    const channelUrls = selectedChannelData.map(channel => 
+      `https://t.me/${channel.id}`
+    );
+    
+    console.log('Generating summaries for Telegram channels:', { period, sources: channelUrls });
+    onFetchSummaries({ period, sources: channelUrls });
   };
 
   return (
@@ -267,114 +489,240 @@ const Settings = ({ onFetchSummaries }) => {
           </select>
         </div>
       </div>
-      {loading ? (
-        <div className="loading-indicator">Loading sources...</div>
-      ) : error ? (
-        <div className="error-message">
-          <p>Error: {error}</p>
-          <p>Make sure the Flask backend is running properly.</p>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          <div className="source-categories-grid">
-            {Object.keys(categories).length === 0 ? (
-              <p className="no-sources">No sources available in the database.</p>
-            ) : (
-              Object.entries(categories).map(([category, sources]) => (
-                <div key={category} className="source-category-block">
-                  <div className="category-header">
-                    <label className="category-checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={isCategorySelected(category)}
-                        onChange={() => handleCategoryToggle(category)}
-                        className="category-checkbox"
-                        ref={el => {
-                          if (el) {
-                            el.indeterminate = isCategoryPartiallySelected(category);
-                          }
-                        }}
-                      />
-                      <h3>{category}</h3>
-                    </label>
-                  </div>
-                  <div className="source-list-container-grid">
-                    {sources.map(source => (
-                      <div key={source.id} className="source-item">
-                        <label className="checkbox-label">
+      
+      {/* Tab Navigation */}
+      <div className="settings-tabs">
+        <button 
+          className={`tab-button ${activeTab === 'default-sources' ? 'active' : ''}`}
+          onClick={() => handleTabChange('default-sources')}
+        >
+          Default Sources
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'telegram-export' ? 'active' : ''}`}
+          onClick={() => handleTabChange('telegram-export')}
+        >
+          Telegram Export
+        </button>
+      </div>
+      
+      {/* Default Sources Tab */}
+      {activeTab === 'default-sources' && (
+        <>
+          {loading ? (
+            <div className="loading-indicator">Loading sources...</div>
+          ) : error ? (
+            <div className="error-message">
+              <p>Error: {error}</p>
+              <p>Make sure the Flask backend is running properly.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleDefaultSubmit}>
+              <div className="source-categories-grid">
+                {Object.keys(categories).length === 0 ? (
+                  <p className="no-sources">No sources available in the database.</p>
+                ) : (
+                  Object.entries(categories).map(([category, sources]) => (
+                    <div key={category} className="source-category-block">
+                      <div className="category-header">
+                        <label className="category-checkbox-label">
                           <input
                             type="checkbox"
-                            checked={selectedSources.includes(source.url)}
-                            onChange={() => handleSourceToggle(source.url)}
+                            checked={isCategorySelected(category)}
+                            onChange={() => handleCategoryToggle(category)}
+                            className="category-checkbox"
+                            ref={el => {
+                              if (el) {
+                                el.indeterminate = isCategoryPartiallySelected(category);
+                              }
+                            }}
                           />
-                          <span className="source-name" title={source.url}>
-                            {source.name}
-                          </span>
+                          <h3>{category}</h3>
                         </label>
                       </div>
-                    ))}
+                      <div className="source-list-container-grid">
+                        {sources.map(source => (
+                          <div key={source.id} className="source-item">
+                            <label className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedSources.includes(source.url)}
+                                onChange={() => handleSourceToggle(source.url)}
+                              />
+                              <span className="source-name" title={source.url}>
+                                {source.name}
+                              </span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {/* Custom Sources section as a category block - email subscription */}
+                <div className="source-category-block disabled-feature custom-sources-block">
+                  <div className="category-header">
+                    <h3>Custom Sources</h3>
+                  </div>
+                  <div className="source-list-container-grid">
+                    <div className="custom-source-item subscription-message">
+                      {subscriptionSubmitted ? (
+                        <div className="subscription-success">
+                          <span className="success-icon">✓</span>
+                          <p>Thank you for subscribing!</p>
+                          <p>We'll notify you when custom sources are available.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p>Enter your email to get access to custom news sources feature.</p>
+                          <div className="email-subscription-form">
+                            <input 
+                              type="email" 
+                              className={`email-input ${subscriptionError ? 'input-error' : ''}`}
+                              placeholder="Your email address"
+                              aria-label="Email address for subscription"
+                              value={email}
+                              onChange={handleEmailChange}
+                            />
+                            <button 
+                              className="subscribe-button" 
+                              type="button"
+                              onClick={handleSubscribe}
+                            >
+                              Subscribe
+                            </button>
+                          </div>
+                          {subscriptionError && (
+                            <p className="error-message">{subscriptionError}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {/* Custom source inputs remain hidden */}
                   </div>
                 </div>
-              ))
+              </div>
+              <div className="selected-count">
+                Selected sources: {selectedSources.length}
+              </div>
+
+              <div className="form-actions">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={selectedSources.length === 0}
+                >
+                  Generate Summaries
+                </button>
+              </div>
+            </form>
+          )}
+        </>
+      )}
+      
+      {/* Telegram Export Tab */}
+      {activeTab === 'telegram-export' && (
+        <div className="telegram-export-section">
+          <div className="telegram-export-instructions">
+            <h3>How to Export Data from Telegram</h3>
+            <ol>
+              <li>Open the Telegram app and click on <strong>Settings</strong> (⚙️)</li>
+              <li>Go to <strong>Privacy and Security</strong> → <strong>Export Telegram Data</strong></li>
+              <li>Select <strong>Export chats and channels list</strong> (you don't need chat history)</li>
+              <li>Format: <strong>JSON</strong></li>
+              <li>Click <strong>Export</strong> and download the file</li>
+              <li>Upload the JSON file below</li>
+            </ol>
+          </div>
+          
+          <div className="file-upload-section">
+            <label className="file-upload-label">
+              <span>Upload Telegram Export (JSON file)</span>
+              <input 
+                type="file" 
+                accept=".json" 
+                onChange={handleFileChange}
+                className="file-input"
+              />
+            </label>
+            {telegramFile && (
+              <div className="selected-file">
+                <span>Selected file: {telegramFile.name}</span>
+                <button 
+                  className="upload-file-btn" 
+                  onClick={uploadTelegramExport}
+                  disabled={uploading || clustering}
+                >
+                  {uploading ? 'Uploading...' : clustering ? 'Analyzing...' : 'Upload & Analyze'}
+                </button>
+              </div>
             )}
-
-            {/* Custom Sources section as a category block - email subscription */}
-            <div className="source-category-block disabled-feature custom-sources-block">
-              <div className="category-header">
-                <h3>Custom Sources</h3>
-              </div>
-              <div className="source-list-container-grid">
-                <div className="custom-source-item subscription-message">
-                  {subscriptionSubmitted ? (
-                    <div className="subscription-success">
-                      <span className="success-icon">✓</span>
-                      <p>Thank you for subscribing!</p>
-                      <p>We'll notify you when custom sources are available.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p>Enter your email to get access to custom news sources feature.</p>
-                      <div className="email-subscription-form">
-                        <input 
-                          type="email" 
-                          className={`email-input ${subscriptionError ? 'input-error' : ''}`}
-                          placeholder="Your email address"
-                          aria-label="Email address for subscription"
-                          value={email}
-                          onChange={handleEmailChange}
-                        />
-                        <button 
-                          className="subscribe-button" 
-                          type="button"
-                          onClick={handleSubscribe}
-                        >
-                          Subscribe
-                        </button>
+            {fileError && <p className="error-message">{fileError}</p>}
+          </div>
+          
+          {channelTopics.length > 0 && (
+            <form onSubmit={handleTelegramSubmit}>
+              <div className="channel-topics-section">
+                <h3>Telegram Channels by Topic</h3>
+                <p className="select-channels-prompt">Select channels to include in the summaries:</p>
+                
+                <div className="channel-topics-grid">
+                  {channelTopics.map((topic, index) => (
+                    <div key={index} className="channel-topic-block">
+                      <div className="topic-header">
+                        <label className="topic-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={isTopicSelected(topic)}
+                            onChange={() => handleTopicToggle(topic)}
+                            className="topic-checkbox"
+                            ref={el => {
+                              if (el) {
+                                el.indeterminate = isTopicPartiallySelected(topic);
+                              }
+                            }}
+                          />
+                          <h4>{topic.topic} ({topic.channels.length})</h4>
+                        </label>
                       </div>
-                      {subscriptionError && (
-                        <p className="error-message">{subscriptionError}</p>
-                      )}
-                    </>
-                  )}
+                      <div className="channel-list-container">
+                        {topic.channels.map(channel => (
+                          <div key={channel.id} className="channel-item">
+                            <label className="channel-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedChannels.includes(channel.id)}
+                                onChange={() => handleChannelToggle(channel.id)}
+                              />
+                              <span className="channel-name" title={channel.name}>
+                                {channel.name}
+                                {channel.left && <span className="left-indicator"> (left)</span>}
+                              </span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {/* Custom source inputs remain hidden */}
+                <div className="selected-count">
+                  Selected channels: {selectedChannels.length}
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="selected-count">
-            Selected sources: {selectedSources.length}
-          </div>
-
-          <div className="form-actions">
-            <button 
-              type="submit" 
-              className="btn btn-primary"
-              disabled={selectedSources.length === 0}
-            >
-              Generate Summaries
-            </button>
-          </div>
-        </form>
+              
+              <div className="form-actions">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={selectedChannels.length === 0}
+                >
+                  Generate Summaries from Telegram
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );
