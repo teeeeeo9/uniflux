@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sources (
     name TEXT NOT NULL DEFAULT '', -- Human-readable name for the source
     source_type TEXT NOT NULL DEFAULT 'telegram', -- Type of source: 'telegram', 'rss', etc.
     category TEXT DEFAULT 'Uncategorized',
+    user_id TEXT DEFAULT NULL, -- User identifier for user-specific sources
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

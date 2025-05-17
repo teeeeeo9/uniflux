@@ -883,4 +883,40 @@
     border-color: var(--color-primary);
     border-bottom-color: var(--color-primary);
   }
+}
+
+/* Language tag style */
+.language-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  background-color: #e2e8f0;
+  color: #4a5568;
+  margin-left: 0.5rem;
+}
+
+/* Last message date style */
+.last-message-date {
+  font-size: 0.7rem;
+  color: #718096;
+  font-style: italic;
+}
+
+/* Processing note */
+.processing-note {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+  font-style: italic;
+}
+
+/* Language-specific colors */
+.topic-header h4 {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: calc(100% - 50px);
 } 

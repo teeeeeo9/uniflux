@@ -216,7 +216,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
         
         if prompt_type == "initial":
             logger.debug("Using initial summarization prompt")
-            prompt = INSTRUCTIONS["initial_summarization"].format(text_content=text_content)
+            prompt = INSTRUCTIONS["initial_summarization_general"].format(text_content=text_content)
         else:  # incremental
             logger.debug("Using incremental summarization prompt")
             prompt = INSTRUCTIONS["incremental_summarization"].format(
@@ -225,6 +225,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
             )
         
         logger.debug(f"Sending request to Gemini API using model: {GEMINI_MODEL_SUMMARIZER}")
+        logger.debug(f"Prompt: {prompt}")
         # Use the request-specific client instead of the global one
         response = await request_client.aio.models.generate_content(
             model=GEMINI_MODEL_SUMMARIZER, contents=prompt
@@ -234,6 +235,7 @@ async def summarize_with_gemini(text_content, prompt_type="initial"):
         # Extract JSON from response
         response_text = response.text
         logger.debug(f"Response text length: {len(response_text)}")
+        logger.debug(f"Response text: {response_text}")
         
         # Find JSON content (may be wrapped in markdown code blocks)
         if "```json" in response_text:
@@ -315,6 +317,7 @@ async def process_and_aggregate_news(period, sources=None):
                     logger.info(f"[PROCESS_API_CALL] Performing initial summarization via Gemini API")
                     current_summary = await summarize_with_gemini(batch_text, "initial")
                     logger.info(f"[PROCESS_API_RESULT] Completed initial summarization")
+                    logger.debug(f"Current summary: {current_summary}")
                 else:
                     # Incremental summarization
                     logger.info(f"[PROCESS_API_CALL] Performing incremental summarization for batch {i+1} via Gemini API")
@@ -324,6 +327,7 @@ async def process_and_aggregate_news(period, sources=None):
                     }
                     current_summary = await summarize_with_gemini(text_content, "incremental")
                     logger.info(f"[PROCESS_API_RESULT] Completed incremental summarization for batch {i+1}")
+                    logger.debug(f"Current summary: {current_summary}")
             
             except Exception as e:
                 logger.error(f"[PROCESS_ERROR] Error processing batch {i+1}: {e}")

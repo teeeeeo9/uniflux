@@ -46,51 +46,51 @@ const Settings = ({ onFetchSummaries }) => {
     }
   }, [activeTab]);
 
-  const fetchSources = async () => {
-    setLoading(true);
-    try {
-      console.log('Fetching sources from /sources endpoint');
-      const response = await fetch(`${API_URL}/sources`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        }
-      });
-      
-      if (!response.ok) {
-        // Try to get detailed error message
-        let errorMsg = `Server error: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (errorData && errorData.error) {
-            errorMsg = errorData.error;
+    const fetchSources = async () => {
+      setLoading(true);
+      try {
+        console.log('Fetching sources from /sources endpoint');
+        const response = await fetch(`${API_URL}/sources`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
           }
-        } catch (e) {
-          const text = await response.text();
-          if (text) errorMsg += ` - ${text}`;
+        });
+        
+        if (!response.ok) {
+          // Try to get detailed error message
+          let errorMsg = `Server error: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            if (errorData && errorData.error) {
+              errorMsg = errorData.error;
+            }
+          } catch (e) {
+            const text = await response.text();
+            if (text) errorMsg += ` - ${text}`;
+          }
+          throw new Error(errorMsg);
         }
-        throw new Error(errorMsg);
+        
+        const data = await response.json();
+        console.log('Sources response:', data);
+        setCategories(data.sources || {});
+        
+        // Initialize selected categories state
+        const initialSelectedCategories = {};
+        Object.keys(data.sources || {}).forEach(category => {
+          initialSelectedCategories[category] = false;
+        });
+        setSelectedCategories(initialSelectedCategories);
+      } catch (err) {
+        console.error('Error fetching sources:', err);
+        setError(err.message || 'Failed to fetch sources');
+      } finally {
+        setLoading(false);
       }
-      
-      const data = await response.json();
-      console.log('Sources response:', data);
-      setCategories(data.sources || {});
-      
-      // Initialize selected categories state
-      const initialSelectedCategories = {};
-      Object.keys(data.sources || {}).forEach(category => {
-        initialSelectedCategories[category] = false;
-      });
-      setSelectedCategories(initialSelectedCategories);
-    } catch (err) {
-      console.error('Error fetching sources:', err);
-      setError(err.message || 'Failed to fetch sources');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   const handlePeriodChange = (e) => {
     setPeriod(e.target.value);
@@ -418,9 +418,20 @@ const Settings = ({ onFetchSummaries }) => {
       
       setChannelTopics(data.topics);
       
-      // Select all channels by default
-      const allChannelIds = channelsData.map(channel => channel.id);
-      setSelectedChannels(allChannelIds);
+      // Select only the first 2 channels in each topic
+      const initialSelectedChannels = [];
+      data.topics.forEach(topic => {
+        // Get up to the first 2 channels from each topic
+        const topChannels = topic.channels.slice(0, 2);
+        
+        // Add their IDs to the selected channels
+        topChannels.forEach(channel => {
+          initialSelectedChannels.push(channel.id);
+        });
+      });
+      
+      // Set initial selected channels
+      setSelectedChannels(initialSelectedChannels);
       
     } catch (err) {
       console.error('Error clustering channels:', err);
@@ -444,7 +455,7 @@ const Settings = ({ onFetchSummaries }) => {
     onFetchSummaries({ period, sources: allSources });
   };
 
-  const handleTelegramSubmit = (e) => {
+  const handleTelegramSubmit = async (e) => {
     e.preventDefault();
     
     if (selectedChannels.length === 0) {
@@ -452,7 +463,7 @@ const Settings = ({ onFetchSummaries }) => {
       return;
     }
     
-    // Find the selected channel URLs
+    // Find the selected channel data
     const selectedChannelData = [];
     channelTopics.forEach(topic => {
       topic.channels.forEach(channel => {
@@ -461,14 +472,49 @@ const Settings = ({ onFetchSummaries }) => {
         }
       });
     });
+
+    // Show loading state
+    setUploading(true);
+    setFileError('');
     
-    // Convert Telegram channel IDs to t.me URLs
-    const channelUrls = selectedChannelData.map(channel => 
-      `https://t.me/${channel.id}`
-    );
-    
-    console.log('Generating summaries for Telegram channels:', { period, sources: channelUrls });
-    onFetchSummaries({ period, sources: channelUrls });
+    try {
+      // First save channels to database and fetch messages
+      console.log('Saving selected channels to database:', selectedChannelData);
+      
+      const saveResponse = await fetch(`${API_URL}/save-telegram-channels`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify({
+          channels: selectedChannelData,
+          period: period
+        })
+      });
+      
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json();
+        throw new Error(errorData.error || `Server error: ${saveResponse.status}`);
+      }
+      
+      const saveResult = await saveResponse.json();
+      console.log('Save result:', saveResult);
+      
+      // Convert Telegram channel IDs to t.me URLs for the summary generation
+      const channelUrls = selectedChannelData.map(channel => 
+        channel.url || `https://t.me/${channel.id}`
+      );
+      
+      console.log('Generating summaries for Telegram channels:', { period, sources: channelUrls });
+      onFetchSummaries({ period, sources: channelUrls });
+    } catch (err) {
+      console.error('Error processing Telegram channels:', err);
+      setFileError(err.message || 'Failed to process channels');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -509,114 +555,114 @@ const Settings = ({ onFetchSummaries }) => {
       {/* Default Sources Tab */}
       {activeTab === 'default-sources' && (
         <>
-          {loading ? (
-            <div className="loading-indicator">Loading sources...</div>
-          ) : error ? (
-            <div className="error-message">
-              <p>Error: {error}</p>
-              <p>Make sure the Flask backend is running properly.</p>
-            </div>
-          ) : (
+      {loading ? (
+        <div className="loading-indicator">Loading sources...</div>
+      ) : error ? (
+        <div className="error-message">
+          <p>Error: {error}</p>
+          <p>Make sure the Flask backend is running properly.</p>
+        </div>
+      ) : (
             <form onSubmit={handleDefaultSubmit}>
-              <div className="source-categories-grid">
-                {Object.keys(categories).length === 0 ? (
-                  <p className="no-sources">No sources available in the database.</p>
-                ) : (
-                  Object.entries(categories).map(([category, sources]) => (
-                    <div key={category} className="source-category-block">
-                      <div className="category-header">
-                        <label className="category-checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={isCategorySelected(category)}
-                            onChange={() => handleCategoryToggle(category)}
-                            className="category-checkbox"
-                            ref={el => {
-                              if (el) {
-                                el.indeterminate = isCategoryPartiallySelected(category);
-                              }
-                            }}
-                          />
-                          <h3>{category}</h3>
-                        </label>
-                      </div>
-                      <div className="source-list-container-grid">
-                        {sources.map(source => (
-                          <div key={source.id} className="source-item">
-                            <label className="checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={selectedSources.includes(source.url)}
-                                onChange={() => handleSourceToggle(source.url)}
-                              />
-                              <span className="source-name" title={source.url}>
-                                {source.name}
-                              </span>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-
-                {/* Custom Sources section as a category block - email subscription */}
-                <div className="source-category-block disabled-feature custom-sources-block">
+          <div className="source-categories-grid">
+            {Object.keys(categories).length === 0 ? (
+              <p className="no-sources">No sources available in the database.</p>
+            ) : (
+              Object.entries(categories).map(([category, sources]) => (
+                <div key={category} className="source-category-block">
                   <div className="category-header">
-                    <h3>Custom Sources</h3>
+                    <label className="category-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={isCategorySelected(category)}
+                        onChange={() => handleCategoryToggle(category)}
+                        className="category-checkbox"
+                        ref={el => {
+                          if (el) {
+                            el.indeterminate = isCategoryPartiallySelected(category);
+                          }
+                        }}
+                      />
+                      <h3>{category}</h3>
+                    </label>
                   </div>
                   <div className="source-list-container-grid">
-                    <div className="custom-source-item subscription-message">
-                      {subscriptionSubmitted ? (
-                        <div className="subscription-success">
-                          <span className="success-icon">✓</span>
-                          <p>Thank you for subscribing!</p>
-                          <p>We'll notify you when custom sources are available.</p>
-                        </div>
-                      ) : (
-                        <>
-                          <p>Enter your email to get access to custom news sources feature.</p>
-                          <div className="email-subscription-form">
-                            <input 
-                              type="email" 
-                              className={`email-input ${subscriptionError ? 'input-error' : ''}`}
-                              placeholder="Your email address"
-                              aria-label="Email address for subscription"
-                              value={email}
-                              onChange={handleEmailChange}
-                            />
-                            <button 
-                              className="subscribe-button" 
-                              type="button"
-                              onClick={handleSubscribe}
-                            >
-                              Subscribe
-                            </button>
-                          </div>
-                          {subscriptionError && (
-                            <p className="error-message">{subscriptionError}</p>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    {/* Custom source inputs remain hidden */}
+                    {sources.map(source => (
+                      <div key={source.id} className="source-item">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={selectedSources.includes(source.url)}
+                            onChange={() => handleSourceToggle(source.url)}
+                          />
+                          <span className="source-name" title={source.url}>
+                            {source.name}
+                          </span>
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-              <div className="selected-count">
-                Selected sources: {selectedSources.length}
-              </div>
+              ))
+            )}
 
-              <div className="form-actions">
-                <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  disabled={selectedSources.length === 0}
-                >
-                  Generate Summaries
-                </button>
+            {/* Custom Sources section as a category block - email subscription */}
+            <div className="source-category-block disabled-feature custom-sources-block">
+              <div className="category-header">
+                <h3>Custom Sources</h3>
               </div>
-            </form>
+              <div className="source-list-container-grid">
+                <div className="custom-source-item subscription-message">
+                  {subscriptionSubmitted ? (
+                    <div className="subscription-success">
+                      <span className="success-icon">✓</span>
+                      <p>Thank you for subscribing!</p>
+                      <p>We'll notify you when custom sources are available.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p>Enter your email to get access to custom news sources feature.</p>
+                      <div className="email-subscription-form">
+                        <input 
+                          type="email" 
+                          className={`email-input ${subscriptionError ? 'input-error' : ''}`}
+                          placeholder="Your email address"
+                          aria-label="Email address for subscription"
+                          value={email}
+                          onChange={handleEmailChange}
+                        />
+                        <button 
+                          className="subscribe-button" 
+                          type="button"
+                          onClick={handleSubscribe}
+                        >
+                          Subscribe
+                        </button>
+                      </div>
+                      {subscriptionError && (
+                        <p className="error-message">{subscriptionError}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+                {/* Custom source inputs remain hidden */}
+              </div>
+            </div>
+          </div>
+          <div className="selected-count">
+            Selected sources: {selectedSources.length}
+          </div>
+
+          <div className="form-actions">
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={selectedSources.length === 0}
+            >
+              Generate Summaries
+            </button>
+          </div>
+        </form>
           )}
         </>
       )}
@@ -684,6 +730,9 @@ const Settings = ({ onFetchSummaries }) => {
                             }}
                           />
                           <h4>{topic.topic} ({topic.channels.length})</h4>
+                          {topic.language && (
+                            <span className="language-tag">{topic.language.toUpperCase()}</span>
+                          )}
                         </label>
                       </div>
                       <div className="channel-list-container">
@@ -698,6 +747,11 @@ const Settings = ({ onFetchSummaries }) => {
                               <span className="channel-name" title={channel.name}>
                                 {channel.name}
                                 {channel.left && <span className="left-indicator"> (left)</span>}
+                                {channel.last_message_date && (
+                                  <span className="last-message-date" title={`Last message: ${channel.last_message_date}`}>
+                                    {' '}{new Date(channel.last_message_date).toLocaleDateString()}
+                                  </span>
+                                )}
                               </span>
                             </label>
                           </div>
@@ -715,10 +769,11 @@ const Settings = ({ onFetchSummaries }) => {
                 <button 
                   type="submit" 
                   className="btn btn-primary"
-                  disabled={selectedChannels.length === 0}
+                  disabled={selectedChannels.length === 0 || uploading}
                 >
-                  Generate Summaries from Telegram
+                  {uploading ? 'Processing Channels...' : 'Generate Summaries from Telegram'}
                 </button>
+                {uploading && <p className="processing-note">Fetching messages from channels. This may take a moment...</p>}
               </div>
             </form>
           )}

@@ -122,8 +122,22 @@ def serialize_message(message, channel_url):
     logger.debug(f"Serializing message ID: {message.id} from channel: {channel_url}")
     links = extract_links_from_entities(message)
     
-    # Extract channel ID from URL
-    channel_id = channel_url.split('/')[-1] if channel_url.startswith('https://t.me/') else channel_url
+    # Extract channel ID from URL or special format
+    channel_id = None
+    if channel_url.startswith('https://t.me/'):
+        parts = channel_url.split('/')
+        if len(parts) > 3:
+            channel_id = parts[-1]
+        elif len(parts) == 3 and parts[-1]:
+            channel_id = parts[-1]
+        else:
+            channel_id = channel_url
+    elif channel_url.startswith('tg-channel:'):
+        # Handle our special format for numeric IDs
+        channel_id = channel_url.split(':')[1]
+    else:
+        # Default fallback - use the full URL as channel_id
+        channel_id = channel_url
     
     message_data = {
         "internal_id": None,  # Will be populated later if stored in DB
@@ -270,9 +284,43 @@ async def get_channel_entity(client, channel_identifier):
     """Resolves a channel username or ID to its entity."""
     logger.info(f"Resolving channel entity for: {channel_identifier}")
     try:
-        entity = await client.get_entity(channel_identifier)
-        logger.debug(f"Entity resolved: {entity}")
-        return entity
+        # Handle different types of identifiers
+        if isinstance(channel_identifier, str) and (channel_identifier.isdigit() or (channel_identifier.startswith('-') and channel_identifier[1:].isdigit())):
+            # This is a numeric ID string, convert to int and use PeerChannel
+            from telethon.tl.types import PeerChannel
+            
+            # Convert to integer
+            channel_id_int = int(channel_identifier)
+            
+            # Create PeerChannel object
+            peer = PeerChannel(channel_id_int)
+            
+            # Get entity directly from peer
+            entity = await client.get_entity(peer)
+            logger.info(f"Successfully resolved numeric channel ID {channel_identifier} to entity")
+            return entity
+        elif isinstance(channel_identifier, int) or (isinstance(channel_identifier, str) and channel_identifier.startswith('tg-channel:')):
+            # This is already an integer ID or our special format
+            from telethon.tl.types import PeerChannel
+            
+            # Handle our special format
+            if isinstance(channel_identifier, str) and channel_identifier.startswith('tg-channel:'):
+                channel_id_int = int(channel_identifier.split(':')[1])
+            else:
+                channel_id_int = int(channel_identifier)
+                
+            # Create PeerChannel object
+            peer = PeerChannel(channel_id_int)
+            
+            # Get entity directly from peer
+            entity = await client.get_entity(peer)
+            logger.info(f"Successfully resolved numeric channel ID {channel_identifier} to entity")
+            return entity
+        else:
+            # Regular username or URL
+            entity = await client.get_entity(channel_identifier)
+            logger.info(f"Successfully resolved channel username {channel_identifier} to entity")
+            return entity
     except Exception as e:
         logger.error(f"Could not find channel '{channel_identifier}': {e}")
         logger.error(traceback.format_exc())
@@ -533,21 +581,39 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             current_channel += 1
             logger.info(f"[Progress: {current_channel}/{total_channels} channels] Processing {original_identifier}")
             
+            # Handle different channel identifier formats
             channel_identifier = original_identifier
+            channel_id = None
+            
             if original_identifier.startswith("https://t.me/"):
+                # Extract username from t.me URL
                 parts = original_identifier.split('/')
                 if len(parts) > 3:
                     channel_identifier = parts[-1]
                 elif len(parts) == 3 and parts[-1]:
                     channel_identifier = parts[-1]
+                channel_id = channel_identifier
+            elif original_identifier.startswith("tg-channel:"):
+                # Handle our special format for numeric IDs
+                channel_id = original_identifier.split(':')[1]
+                channel_identifier = int(channel_id)  # Pass the numeric ID as int to get_channel_entity
             
-            logger.info(f'Processing identifier: {original_identifier} (using handle: {channel_identifier})')
+            logger.info(f'Processing identifier: {original_identifier} (using identifier: {channel_identifier})')
             entity = await get_channel_entity(client, channel_identifier)
             logger.debug(f'Entity for {channel_identifier}: {entity}')
             
             if entity:
+                # If channel_id wasn't set above, try to get it from entity
+                if not channel_id:
+                    if hasattr(entity, 'username') and entity.username:
+                        channel_id = entity.username
+                    elif hasattr(entity, 'id'):
+                        channel_id = str(entity.id)
+                    else:
+                        channel_id = str(channel_identifier)
+                
                 # Get the latest timestamp from the database for this channel
-                latest_timestamp = get_latest_timestamp_for_channel("telegram", channel_identifier)
+                latest_timestamp = get_latest_timestamp_for_channel("telegram", channel_id)
                 
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
                 
@@ -558,7 +624,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                     logger.info(f'Using effective since date: {effective_since_date.isoformat()}')
                     
                     # Also get the latest message ID as a fallback
-                    latest_message_id = get_latest_message_id_for_channel("telegram", channel_identifier)
+                    latest_message_id = get_latest_message_id_for_channel("telegram", channel_id)
                     
                     # Fetch messages since the latest timestamp with ID > latest_message_id
                     messages = await fetch_channel_messages_since(
@@ -1115,6 +1181,116 @@ async def fetch_rss_feeds(feed_urls, time_range="1d", enable_retries=False, debu
     
     logger.info(f"Completed fetching all RSS feeds")
     return feeds_data
+
+async def fetch_channel_sample_messages(channel_identifier, message_limit=5):
+    """
+    Fetch a small sample of recent messages from a Telegram channel without saving them to the database.
+    This is used for channel analysis and clustering.
+    
+    Args:
+        channel_identifier: The Telegram channel ID or URL
+        message_limit: Maximum number of messages to fetch (default: 5)
+        
+    Returns:
+        A list of message dictionaries with basic information
+    """
+    logger.info(f"Fetching {message_limit} sample messages from {channel_identifier} for analysis")
+    
+    # Extract channel ID from URL if needed
+    channel_id = None
+    if channel_identifier.startswith("https://t.me/"):
+        parts = channel_identifier.split('/')
+        if len(parts) > 3:
+            channel_id = parts[-1]
+        elif len(parts) == 3 and parts[-1]:
+            channel_id = parts[-1]
+        else:
+            channel_id = channel_identifier
+    elif channel_identifier.startswith("tg-channel:"):
+        # Handle our special format for numeric IDs
+        channel_id = channel_identifier.split(':')[1]
+    else:
+        channel_id = channel_identifier
+        
+    # Create a new client session just for this request
+    client = TelegramClient(session_file, api_id, api_hash)
+    
+    try:
+        # Connect and check authorization
+        await client.connect()
+        if not await client.is_user_authorized():
+            logger.error(f"User not authorized to fetch messages from {channel_identifier}")
+            return []
+            
+        # Get the channel entity - handle both username and numeric ID
+        try:
+            if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
+                # This is a numeric ID, use PeerChannel
+                from telethon.tl.types import PeerChannel
+                
+                # Convert the numeric ID to integer
+                channel_id_int = int(channel_id)
+                
+                # Create PeerChannel object
+                peer = PeerChannel(channel_id_int)
+                
+                # Get entity directly from peer
+                entity = await client.get_entity(peer)
+                logger.info(f"Successfully resolved numeric channel ID {channel_id} to entity")
+            else:
+                # This is a username or handle
+                entity = await client.get_entity(channel_id)
+                logger.info(f"Successfully resolved channel username {channel_id} to entity")
+        except Exception as e:
+            logger.error(f"Could not find channel '{channel_id}': {e}")
+            logger.error(traceback.format_exc())
+            return []
+            
+        # Fetch messages
+        try:
+            history = await client(GetHistoryRequest(
+                peer=entity,
+                offset_id=0,
+                offset_date=None,
+                add_offset=0,
+                limit=message_limit,
+                max_id=0,
+                min_id=0,
+                hash=0
+            ))
+            
+            messages = history.messages
+            logger.info(f"Fetched {len(messages)} sample messages from {channel_identifier}")
+            
+            # Convert to simplified format - we don't need all the details
+            sample_messages = []
+            for message in messages:
+                if not message.message:  # Skip empty messages
+                    continue
+                    
+                sample_message = {
+                    "id": message.id,
+                    "date": message.date.isoformat() if message.date else None,
+                    "text": message.message
+                }
+                sample_messages.append(sample_message)
+                
+            return sample_messages
+            
+        except Exception as e:
+            logger.error(f"Error fetching messages from {channel_identifier}: {e}")
+            logger.error(traceback.format_exc())
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error in fetch_channel_sample_messages for {channel_identifier}: {e}")
+        logger.error(traceback.format_exc())
+        return []
+        
+    finally:
+        # Always disconnect the client
+        await client.disconnect()
+        logger.debug(f"Disconnected client after fetching sample messages from {channel_identifier}")
 
 async def main():
     """

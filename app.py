@@ -38,7 +38,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(LOG_FILE),
@@ -135,12 +135,13 @@ def init_db():
                 # Extract name from source or use a default based on the URL
                 name = source.get('name', source['url'].split('/')[-1])
                 
+                # Default sources have NULL user_id to indicate they're available to all users
                 cursor.execute(
-                    "INSERT OR IGNORE INTO sources (url, name, source_type, category) VALUES (?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO sources (url, name, source_type, category, user_id) VALUES (?, ?, ?, ?, NULL)",
                     (source['url'], name, source['source_type'], source['category'])
                 )
                 
-                # If the source exists but has different values, update it
+                # If the source exists but has different values, update it (preserving user_id)
                 cursor.execute(
                     """
                     UPDATE sources 
@@ -235,6 +236,144 @@ async def get_summaries():
         logger.error(f"Failed to send Telegram notification: {e}")
     
     try:
+        # Check if we need to fetch data for any sources that have no messages
+        if sources:
+            # Import data_fetcher to get messages if needed
+            from data_fetcher import fetch_telegram_messages, authorize_client
+            from telethon.tl.types import PeerChannel
+            
+            telegram_sources = []
+            no_data_sources = []
+            numeric_ids = []  # List of numeric channel IDs that need resolution
+            
+            # First, identify all types of sources
+            for source in sources:
+                source_type = None
+                channel_id = None
+                
+                # Handle different source formats
+                if source.startswith('https://t.me/'):
+                    # This is a Telegram source with handle/username
+                    source_type = 'telegram'
+                    
+                    # Extract channel_id from URL
+                    parts = source.split('/')
+                    if len(parts) > 3:
+                        channel_id = parts[-1]
+                    elif len(parts) == 3 and parts[-1]:
+                        channel_id = parts[-1]
+                    else:
+                        channel_id = source
+                    
+                    telegram_sources.append({"url": source, "channel_id": channel_id, "is_numeric": False})
+                
+                elif source.isdigit() or (source.startswith('-') and source[1:].isdigit()):
+                    # This is a Telegram numeric ID from JSON export
+                    source_type = 'telegram'
+                    channel_id = source
+                    
+                    # We'll need to resolve this ID to a proper channel
+                    numeric_ids.append({"numeric_id": channel_id})
+                    telegram_sources.append({"url": None, "channel_id": channel_id, "is_numeric": True})
+            
+            # If we have numeric IDs, resolve them to proper channel entities using Telegram API
+            resolved_channels = {}  # Map of numeric_id -> proper channel URL
+            
+            if numeric_ids:
+                logger.info(f"REQUEST [{request_id}] - Resolving {len(numeric_ids)} numeric channel IDs")
+                
+                try:
+                    # Authorize Telegram client
+                    client = await authorize_client()
+                    
+                    if client:
+                        # Process each numeric ID
+                        for item in numeric_ids:
+                            numeric_id = item["numeric_id"]
+                            try:
+                                # Convert the numeric ID to integer
+                                channel_id_int = int(numeric_id)
+                                
+                                # Use PeerChannel to create the proper peer object for the channel
+                                print('peer = PeerChannel(channel_id_int)')
+                                peer = PeerChannel(channel_id_int)
+                                
+                                # Get the channel entity directly from the peer
+                                entity = await client.get_entity(peer)
+                                
+                                if entity:
+                                    # Get username if available, otherwise use a URL with the numeric ID
+                                    if hasattr(entity, 'username') and entity.username:
+                                        channel_url = f"https://t.me/{entity.username}"
+                                    else:
+                                        # For channels without username, we'll use the original numeric ID
+                                        # The data_fetcher should be able to handle this via the peer ID
+                                        channel_url = f"tg-channel:{numeric_id}"  # Custom format to indicate numeric ID
+                                    
+                                    resolved_channels[numeric_id] = channel_url
+                                    logger.info(f"Resolved channel ID {numeric_id} to {channel_url}")
+                                else:
+                                    logger.warning(f"Could not resolve channel ID: {numeric_id}")
+                            except Exception as e:
+                                logger.error(f"Error resolving channel ID {numeric_id}: {e}")
+                                logger.error(traceback.format_exc())
+                        
+                        # Disconnect client when done
+                        await client.disconnect()
+                    else:
+                        logger.error("Failed to authorize Telegram client for channel resolution")
+                
+                except Exception as e:
+                    logger.error(f"Error during channel resolution: {e}")
+                    logger.error(traceback.format_exc())
+            
+            # Now check which channels need data fetching
+            for source_info in telegram_sources:
+                channel_id = source_info["channel_id"]
+                
+                # For numeric IDs, use the resolved URL if available
+                if source_info["is_numeric"]:
+                    if channel_id in resolved_channels:
+                        source_info["url"] = resolved_channels[channel_id]
+                    else:
+                        # Skip this channel if we couldn't resolve it
+                        logger.warning(f"Skipping unresolved numeric channel ID: {channel_id}")
+                        continue
+                
+                # Check if there are messages for this channel in the database
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    
+                    # Try to find messages by channel ID
+                    cursor.execute(
+                        "SELECT COUNT(*) as count FROM messages WHERE source_type = 'telegram' AND channel_id = ?",
+                        (channel_id,)
+                    )
+                    result = cursor.fetchone()
+                    
+                    if result and result['count'] == 0:
+                        # No messages for this channel, add to fetch list if we have a valid URL
+                        if source_info["url"]:
+                            logger.info(f"REQUEST [{request_id}] - No messages found for channel: {channel_id}")
+                            no_data_sources.append(source_info["url"])
+            
+            # If there are sources with no data, fetch them
+            if no_data_sources:
+                logger.info(f"REQUEST [{request_id}] - Found {len(no_data_sources)} sources with no messages. Fetching data: {no_data_sources}")
+                
+                try:
+                    # Fetch messages for these sources
+                    fetched_data = await fetch_telegram_messages(no_data_sources, time_range=period)
+                    
+                    # Count new messages
+                    new_messages_count = sum(len(message_ids) for message_ids in fetched_data.values())
+                    logger.info(f"REQUEST [{request_id}] - Fetched {new_messages_count} messages for {len(no_data_sources)} sources")
+                    
+                except Exception as e:
+                    logger.error(f"REQUEST [{request_id}] - Error fetching messages: {e}")
+                    logger.error(traceback.format_exc())
+                    # Continue with summarization even if fetch fails
+        
         # Generate summaries with direct await
         logger.info(f"PROCESS [{request_id}] - Calling main with period={period}, sources={sources}")
         # Use main from data_summarizer which includes all enhancements
@@ -403,6 +542,10 @@ async def get_sources():
     """
     API endpoint to retrieve all sources with their categories from the database.
     
+    Query Parameters:
+        - userId: Optional user ID to filter sources by user
+        - includeDefault: Whether to include default sources (default: true)
+    
     Returns:
         A JSON list of sources grouped by category.
     """
@@ -410,14 +553,32 @@ async def get_sources():
         # Ensure we have a valid event loop
         ensure_event_loop()
         
+        # Get query parameters
+        user_id = request.args.get('userId')
+        include_default = request.args.get('includeDefault', 'true').lower() == 'true'
+        
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                """
+            
+            # Build query based on parameters
+            query = """
                 SELECT id, url, name, source_type, category FROM sources 
-                ORDER BY category, name, url
-                """
-            )
+                WHERE 1=1
+            """
+            params = []
+            
+            if user_id:
+                # Include user-specific sources and optionally default sources
+                if include_default:
+                    query += " AND (user_id = ? OR user_id IS NULL)"
+                    params.append(user_id)
+                else:
+                    query += " AND user_id = ?"
+                    params.append(user_id)
+            
+            query += " ORDER BY category, name, url"
+            
+            cursor.execute(query, params)
             
             sources = cursor.fetchall()
             
@@ -961,32 +1122,29 @@ async def upload_telegram_export():
         # Extract channel information from the export
         channels = []
         
+        # Define channel types - ONLY these types are considered valid channels
+        # Explicitly exclude regular group chats and private 1-on-1 chats
+        valid_channel_types = ['public_channel', 'private_channel', 'public_supergroup', 'private_supergroup']
+        
         # Process "chats" section if it exists
         if 'chats' in export_data and 'list' in export_data['chats']:
-            for chat in export_data['chats']['list']:
-                if chat.get('type') in ['public_channel', 'private_channel', 'private_supergroup', 'public_supergroup']:
+            for chat in export_data['chats']['list'][:3]: 
+                chat_type = chat.get('type')
+                if chat_type in valid_channel_types:
                     channels.append({
                         'id': chat.get('id'),
                         'name': chat.get('name', 'Unknown Channel'),
-                        'type': chat.get('type')
+                        'type': chat_type
                     })
+                else:
+                    logger.debug(f"Skipping chat of type '{chat_type}' as it's not a channel: {chat.get('name')}")
         
-        # Process "left_chats" section if it exists
-        if 'left_chats' in export_data and 'list' in export_data['left_chats']:
-            for chat in export_data['left_chats']['list']:
-                if chat.get('type') in ['public_channel', 'private_channel', 'private_supergroup', 'public_supergroup']:
-                    channels.append({
-                        'id': chat.get('id'),
-                        'name': chat.get('name', 'Unknown Channel'),
-                        'type': chat.get('type'),
-                        'left': True
-                    })
-        
+
         if not channels:
             logger.warning(f"REQUEST [{request_id}] - No channels found in the export")
             response = jsonify({
                 "success": False,
-                "error": "No channels found in the export file"
+                "error": "No channels found in the export file. Please ensure your export contains channels, not regular chats."
             })
             response.headers['Content-Type'] = 'application/json'
             return response, 400
@@ -1022,6 +1180,7 @@ async def upload_telegram_export():
 async def cluster_channels():
     """
     API endpoint to cluster channels into topics using Gemini Flash.
+    Fetches sample messages directly from Telegram to improve clustering quality.
     
     Request Format (JSON):
     {
@@ -1045,7 +1204,9 @@ async def cluster_channels():
                     {
                         "id": 1234567890,
                         "name": "Channel Name",
-                        "type": "public_channel"
+                        "type": "public_channel",
+                        "last_message_date": "2023-05-20T12:34:56",
+                        "language": "en"
                     },
                     ...
                 ]
@@ -1080,6 +1241,72 @@ async def cluster_channels():
         
         logger.info(f"REQUEST [{request_id}] - Clustering {len(channels)} channels")
         
+        # Import data_fetcher to get channel messages
+        from data_fetcher import fetch_channel_sample_messages
+        from instruction_templates import INSTRUCTIONS
+        from telethon.tl.types import PeerChannel
+        
+        # Enhance channel data with sample messages and attempt to detect language
+        enhanced_channels = []
+        for i, channel in enumerate(channels):
+            channel_id = str(channel.get('id', ''))
+            
+            # For numeric IDs (from JSON exports), create special format
+            if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
+                channel_url = f"tg-channel:{channel_id}"
+            else:
+                channel_url = convert_telegram_channel_to_url(channel_id)
+            
+            # Build enhanced channel object
+            enhanced_channel = {
+                **channel,
+                'url': channel_url,
+                'last_message_date': None,
+                'sample_content': "",
+                'language': "unknown"
+            }
+            
+            # Fetch sample messages directly from Telegram
+            try:
+                logger.info(f"Fetching sample messages for channel {channel_id} using {channel_url}")
+                sample_messages = await fetch_channel_sample_messages(channel_url, message_limit=5)
+                
+                if sample_messages:
+                    # Set the latest message date
+                    enhanced_channel['last_message_date'] = sample_messages[0]['date']
+                    
+                    # Combine message content as a sample
+                    sample_content = "\n\n".join([msg['text'] for msg in sample_messages if msg['text']])
+                    # enhanced_channel['sample_content'] = sample_content[:1500]  # Limit to 1500 chars
+                    enhanced_channel['sample_content'] = sample_content
+                    logger.debug(f"Channel URL: {channel_url}")
+                    logger.debug(f"Sample content: {enhanced_channel['sample_content']}")
+                    
+                    # Simple language detection based on message content
+                    # This is very basic - could be improved with a proper language detection library
+                    cyrillic_chars = sum(1 for c in sample_content if ord('А') <= ord(c) <= ord('я'))
+                    if cyrillic_chars > len(sample_content) * 0.3:  # If more than 30% is Cyrillic
+                        enhanced_channel['language'] = "ru"
+                    else:
+                        enhanced_channel['language'] = "en"  # Default to English
+            except Exception as e:
+                logger.warning(f"Failed to fetch sample messages for channel {channel_id}: {e}")
+                logger.warning(traceback.format_exc())
+            
+            enhanced_channels.append(enhanced_channel)
+        
+        # Sort channels by last_message_date (newest first)
+        # Fix sorting issue with None values by using a default value
+        def safe_sort_key(channel):
+            date = channel.get('last_message_date')
+            # If date is None or doesn't exist, return a very old date as string
+            return date if date is not None else '0000-01-01T00:00:00'
+            
+        enhanced_channels.sort(
+            key=safe_sort_key,
+            reverse=True
+        )
+        
         # Import Gemini API
         from google import genai
         
@@ -1096,30 +1323,22 @@ async def cluster_channels():
         client = genai.Client(api_key=gemini_api_key)
         model_name = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')
         
-        # Prepare the prompt for Gemini
-        channel_names = [f"{i+1}. {channel['name']}" for i, channel in enumerate(channels)]
-        channel_list = "\n".join(channel_names)
+        # Prepare the channel information for the prompt
+        channels_info = []
+        for i, channel in enumerate(enhanced_channels):
+            channel_info = f"{i+1}. Name: {channel['name']}"
+            if channel['sample_content']:
+                channel_info += f"\nSample content: {channel['sample_content']}"
+            if channel['language'] != "unknown":
+                channel_info += f"\nDetected language: {channel['language']}"
+            channels_info.append(channel_info)
         
-        prompt = f"""
-        I have a list of Telegram channels that I need to categorize into coherent topic groups.
-        Please analyze these channel names and group them into 3-8 meaningful topic categories.
-        For each channel, assign it to the most appropriate category.
+        channel_list = "\n\n".join(channels_info)
         
-        Channel names:
-        {channel_list}
-        
-        Return the results as a JSON array where each object represents a topic category with the following structure:
-        [
-            {{
-                "topic": "Category name (e.g., Crypto News, Programming, Politics, etc.)",
-                "channel_indices": [0, 2, 5]  // Indices of channels (0-based) that belong to this category
-            }},
-            ...
-        ]
-        
-        Consider that some channels might have names in languages other than English, but try to infer their category from any identifiable words or patterns.
-        Use broad, intuitive categories that would make sense for news aggregation.
-        """
+        # Use the template from instruction_templates.py
+        prompt = INSTRUCTIONS["channel_clustering"].format(
+            channel_info=channel_list
+        )
         
         logger.info(f"REQUEST [{request_id}] - Sending clustering request to Gemini API using model: {model_name}")
         
@@ -1158,15 +1377,24 @@ async def cluster_channels():
             topics_result = []
             for topic_item in topics_data:
                 topic_name = topic_item.get('topic', 'Miscellaneous')
+                language = topic_item.get('language', 'unknown')
                 channel_indices = topic_item.get('channel_indices', [])
                 
                 topic_channels = []
                 for idx in channel_indices:
-                    if 0 <= idx < len(channels):
-                        topic_channels.append(channels[idx])
+                    if 0 <= idx < len(enhanced_channels):
+                        topic_channels.append(enhanced_channels[idx])
+                
+                # Sort channels by last_message_date within each topic
+                # Use the same safe sort key function
+                topic_channels.sort(
+                    key=safe_sort_key, 
+                    reverse=True
+                )
                 
                 topics_result.append({
                     "topic": topic_name,
+                    "language": language,
                     "channels": topic_channels
                 })
             
@@ -1219,9 +1447,146 @@ def convert_telegram_channel_to_url(channel_id):
     """
     return f"https://t.me/{channel_id}"
 
+@app.route('/save-telegram-channels', methods=['POST'])
+async def save_telegram_channels():
+    """
+    API endpoint to save selected Telegram channels to the database and fetch messages from them.
+    
+    Request Format (JSON):
+    {
+        "channels": [
+            {
+                "id": 1234567890,
+                "name": "Channel Name",
+                "type": "public_channel",
+                "url": "https://t.me/channelname"
+            },
+            ...
+        ],
+        "userId": "optional-user-id",  // Optional user ID for future user-specific sources
+        "period": "1d"  // Time period for fetching messages (1d, 2d, 1w)
+    }
+    
+    Response Format (JSON):
+    {
+        "success": true,
+        "message": "Channels saved and messages fetched successfully",
+        "savedChannels": 5,
+        "newMessagesCount": 10
+    }
+    """
+    # Ensure we have a valid event loop
+    ensure_event_loop()
+    
+    # Log request details
+    user_ip = request.remote_addr
+    headers = dict(request.headers)
+    request_id = headers.get('X-Request-ID', 'unknown')
+    
+    logger.info(f"REQUEST [{request_id}] - /save-telegram-channels - IP: {user_ip}")
+    
+    try:
+        # Get JSON data from request body
+        data = request.get_json()
+        
+        if not data or 'channels' not in data:
+            response = jsonify({
+                "success": False,
+                "error": "No channels provided"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+        
+        channels = data['channels']
+        user_id = data.get('userId')
+        period = data.get('period', '1d')
+        
+        if not channels:
+            response = jsonify({
+                "success": False,
+                "error": "Empty channels list"
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 400
+        
+        logger.info(f"REQUEST [{request_id}] - Saving {len(channels)} Telegram channels")
+        
+        # First save the channels to the sources table
+        saved_channels = 0
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            for channel in channels:
+                channel_id = str(channel.get('id', ''))
+                channel_name = channel.get('name', f"Channel {channel_id}")
+                channel_url = channel.get('url') or convert_telegram_channel_to_url(channel_id)
+                
+                # Add or update the source in the database
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO sources (url, name, source_type, category, user_id) 
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(url) DO UPDATE 
+                        SET name = ?, user_id = ?
+                        """,
+                        (channel_url, channel_name, 'telegram', 'Telegram Import', user_id,
+                         channel_name, user_id)
+                    )
+                    saved_channels += 1
+                except sqlite3.Error as e:
+                    logger.error(f"Error saving channel {channel_name} to database: {e}")
+            
+            conn.commit()
+        
+        # Now fetch messages from these channels
+        from data_fetcher import fetch_telegram_messages
+        
+        # Prepare a list of channel URLs for fetching
+        channel_urls = [channel.get('url') or convert_telegram_channel_to_url(str(channel.get('id', ''))) 
+                        for channel in channels]
+        
+        logger.info(f"REQUEST [{request_id}] - Fetching messages from {len(channel_urls)} channels for period {period}")
+        
+        # Fetch messages
+        fetched_data = await fetch_telegram_messages(channel_urls, time_range=period)
+        
+        # Count new messages
+        new_messages_count = sum(len(message_ids) for message_ids in fetched_data.values())
+        
+        logger.info(f"RESPONSE [{request_id}] - Saved {saved_channels} channels and fetched {new_messages_count} messages")
+        
+        response = jsonify({
+            "success": True,
+            "message": "Channels saved and messages fetched successfully",
+            "savedChannels": saved_channels,
+            "newMessagesCount": new_messages_count
+        })
+        response.headers['Content-Type'] = 'application/json'
+        return response, 200
+        
+    except Exception as e:
+        # Log detailed error information
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
+        
+        logger.error(f"ERROR [{request_id}] - Failed to save channels: {error_details['error_type']}: {error_details['error_message']}")
+        logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
+        
+        response = jsonify({
+            "success": False,
+            "error": str(e)
+        })
+        response.headers['Content-Type'] = 'application/json'
+        return response, 500
+
 if __name__ == '__main__':
     logger.info("Application starting up")
     # Initialize the event loop before starting the app
     ensure_event_loop()
     # Run with threaded=True and a higher thread limit to handle multiple concurrent requests
-    app.run(host='0.0.0.0', debug=False, threaded=True, use_reloader=False)  # Disable reloader to avoid event loop issues
+    app.run(host='0.0.0.0', debug=True, threaded=True, use_reloader=False)  # Disable reloader to avoid event loop issues
