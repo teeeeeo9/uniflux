@@ -1375,17 +1375,17 @@ async def cluster_channels():
             
             enhanced_channels.append(enhanced_channel)
         
-        # Sort channels by last_message_date (newest first)
-        # Fix sorting issue with None values by using a default value
-        def safe_sort_key(channel):
-            date = channel.get('last_message_date')
-            # If date is None or doesn't exist, return a very old date as string
-            return date if date is not None else '0000-01-01T00:00:00'
+        # # Sort channels by last_message_date (newest first)
+        # # Fix sorting issue with None values by using a default value
+        # def safe_sort_key(channel):
+        #     date = channel.get('last_message_date')
+        #     # If date is None or doesn't exist, return a very old date as string
+        #     return date if date is not None else '0000-01-01T00:00:00'
             
-        enhanced_channels.sort(
-            key=safe_sort_key,
-            reverse=True
-        )
+        # enhanced_channels.sort(
+        #     key=safe_sort_key,
+        #     reverse=True
+        # )
         
         # Import Gemini API
         from google import genai
@@ -1402,6 +1402,8 @@ async def cluster_channels():
             
         client = genai.Client(api_key=gemini_api_key)
         model_name = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')
+
+        logger.debug(f"enhanced_channels: {[enhanced_channel['name'] for enhanced_channel in enhanced_channels]}")
         
         # Prepare the channel information for the prompt
         channels_info = []
@@ -1421,6 +1423,7 @@ async def cluster_channels():
         )
         
         logger.info(f"REQUEST [{request_id}] - Sending clustering request to Gemini API using model: {model_name}")
+        logger.debug(f"Prompt: {prompt}")
         
         # Call Gemini API
         response = await client.aio.models.generate_content(
@@ -1448,6 +1451,7 @@ async def cluster_channels():
                 
             # Parse the JSON
             topics_data = json.loads(json_str)
+            logger.debug(f"topics_data: {topics_data}")
             
             # Validate the response structure
             if not isinstance(topics_data, list):
@@ -1495,6 +1499,8 @@ async def cluster_channels():
                 threading.Timer(300, cleanup_progress).start()
             
             logger.info(f"RESPONSE [{request_id}] - Clustered channels into {len(topics_result)} topics")
+
+            logger.debug(f"topics_result: {topics_result}")
             
             api_response = jsonify({
                 "success": True,
