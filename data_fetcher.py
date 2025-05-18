@@ -75,7 +75,8 @@ except Exception as e:
     gemini_client = None
 
 # Configuration
-messages_limit = 100  # Number of messages to fetch per request
+# messages_limit = 100  # Number of messages to fetch per request
+messages_limit = 3 #TBD
 session_file = TELEGRAM_SESSION
 logger.info(f"Configuration set: messages_limit={messages_limit}, session_file={session_file}, database={DATABASE}")
 
@@ -533,22 +534,154 @@ def save_message_to_db(message_data):
         logger.error(traceback.format_exc())
         return None
 
-async def fetch_telegram_messages(channels, time_range="1d", enable_retries=False, debug_mode=False):
+async def fetch_channel_sample_messages(channel_identifier, message_limit=5, skip_link_parsing=False):
+    """
+    Fetch a small sample of recent messages from a Telegram channel without saving them to the database.
+    This is used for channel analysis and clustering.
+    
+    Args:
+        channel_identifier: The Telegram channel ID or URL
+        message_limit: Maximum number of messages to fetch (default: 5)
+        skip_link_parsing: If True, don't extract links from messages (for faster initial clustering)
+        
+    Returns:
+        A list of message dictionaries with basic information
+    """
+    logger.info(f"Fetching {message_limit} sample messages from {channel_identifier} for analysis")
+    
+    # Extract channel ID from URL if needed
+    channel_id = None
+    if channel_identifier.startswith("https://t.me/"):
+        parts = channel_identifier.split('/')
+        if len(parts) > 3:
+            channel_id = parts[-1]
+        elif len(parts) == 3 and parts[-1]:
+            channel_id = parts[-1]
+        else:
+            channel_id = channel_identifier
+    elif channel_identifier.startswith("tg-channel:"):
+        # Handle our special format for numeric IDs
+        channel_id = channel_identifier.split(':')[1]
+    else:
+        channel_id = channel_identifier
+        
+    # Create a new client session just for this request
+    client = TelegramClient(session_file, api_id, api_hash)
+    
+    try:
+        # Connect and check authorization
+        await client.connect()
+        if not await client.is_user_authorized():
+            logger.error(f"User not authorized to fetch messages from {channel_identifier}")
+            return []
+            
+        # Get the channel entity - handle both username and numeric ID
+        try:
+            if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
+                # This is a numeric ID, use PeerChannel
+                from telethon.tl.types import PeerChannel
+                
+                # Convert the numeric ID to integer
+                channel_id_int = int(channel_id)
+                
+                # Create PeerChannel object
+                peer = PeerChannel(channel_id_int)
+                
+                # Get entity directly from peer
+                entity = await client.get_entity(peer)
+                logger.info(f"Successfully resolved numeric channel ID {channel_id} to entity")
+            else:
+                # This is a username or handle
+                entity = await client.get_entity(channel_id)
+                logger.info(f"Successfully resolved channel username {channel_id} to entity")
+        except Exception as e:
+            logger.error(f"Could not find channel '{channel_id}': {e}")
+            logger.error(traceback.format_exc())
+            return []
+            
+        # Fetch messages
+        try:
+            history = await client(GetHistoryRequest(
+                peer=entity,
+                offset_id=0,
+                offset_date=None,
+                add_offset=0,
+                limit=message_limit,
+                max_id=0,
+                min_id=0,
+                hash=0
+            ))
+            
+            messages = history.messages
+            logger.info(f"Fetched {len(messages)} sample messages from {channel_identifier}")
+            
+            # Convert to simplified format - we don't need all the details
+            sample_messages = []
+            for message in messages:
+                if not message.message:  # Skip empty messages
+                    continue
+                    
+                sample_message = {
+                    "id": message.id,
+                    "date": message.date.isoformat() if message.date else None,
+                    "text": message.message
+                }
+                
+                # Only extract links if skip_link_parsing is False
+                if not skip_link_parsing and hasattr(message, 'entities') and message.entities:
+                    links = extract_links_from_entities(message)
+                    sample_message["links"] = links
+                
+                sample_messages.append(sample_message)
+                
+            return sample_messages
+            
+        except Exception as e:
+            logger.error(f"Error fetching messages from {channel_identifier}: {e}")
+            logger.error(traceback.format_exc())
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error in fetch_channel_sample_messages for {channel_identifier}: {e}")
+        logger.error(traceback.format_exc())
+        return []
+        
+    finally:
+        # Always disconnect the client
+        await client.disconnect()
+        logger.debug(f"Disconnected client after fetching sample messages from {channel_identifier}")
+
+async def fetch_telegram_messages(channels, time_range="1d", enable_retries=False, debug_mode=False, request_id=None, progress_callback=None):
     """
     Fetches the latest Telegram messages from a list of channel links or handles.
 
     Args:
-        channels: A list of Telegram channel links (e.g., "https://t.me/...") or handles (e.g., "cointelegraph").
+        channels: A list of Telegram channel information dicts with 'url' and 'name' keys
+                 or a list of channel URLs as strings.
         time_range: Time range to fetch messages for. Either "1d" (1 day), "2d" (2 days) or "1w" (1 week).
         enable_retries: Whether to enable retry logic for extraction (up to 5 attempts).
         debug_mode: Whether to enable LiteLLM debug mode.
+        request_id: Optional request ID for tracking purposes.
+        progress_callback: Optional callback function to report progress updates.
 
     Returns:
         A dictionary where keys are the original channel identifiers and values are lists of
         message IDs in the database.
     """
     logger.info(f"Starting to fetch messages from {len(channels)} Telegram channels")
-    logger.debug(f"Channels to fetch: {channels}")
+    
+    # Normalize channels to ensure we have a consistent format
+    normalized_channels = []
+    for channel in channels:
+        if isinstance(channel, dict) and 'url' in channel:
+            normalized_channels.append(channel)
+        elif isinstance(channel, str):
+            normalized_channels.append({
+                'url': channel,
+                'name': channel.split('/')[-1] if '/' in channel else channel
+            })
+    
+    logger.debug(f"Channels to fetch: {normalized_channels}")
     
     client = await authorize_client()
     if not client:
@@ -556,8 +689,8 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
         return {}
         
     news_data = {}
-    total_channels = len(channels)
-    current_channel = 0
+    total_channels = len(normalized_channels)
+    processed_channels = 0
 
     try:
         if not client.is_connected():
@@ -577,9 +710,21 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             since_date_utc = now_utc - timedelta(hours=24)
             logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
 
-        for original_identifier in channels:
-            current_channel += 1
-            logger.info(f"[Progress: {current_channel}/{total_channels} channels] Processing {original_identifier}")
+        for channel_info in normalized_channels:
+            processed_channels += 1
+            
+            # Update progress if callback provided
+            if progress_callback:
+                channel_name = channel_info.get('name', 'Unknown Channel')
+                # Format the channel name to make it more readable
+                if len(channel_name) > 30:
+                    channel_name = channel_name[:27] + '...'
+                progress_callback(processed_channels, total_channels, channel_name)
+                
+            original_identifier = channel_info['url']
+            channel_name = channel_info.get('name', original_identifier.split('/')[-1])
+            
+            logger.info(f"[Progress: {processed_channels}/{total_channels} channels] Processing {channel_name} ({original_identifier})")
             
             # Handle different channel identifier formats
             channel_identifier = original_identifier
@@ -645,7 +790,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 # Extract summaries for each link in each message
                 for message in messages:
                     current_message += 1
-                    logger.info(f"[Progress: {current_channel}/{total_channels} channels, {current_message}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
+                    logger.info(f"[Progress: {processed_channels}/{total_channels} channels, {current_message}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
                     
                     # Parse the message date
                     message_date = datetime.fromisoformat(message['date']) if message['date'] else None
@@ -750,6 +895,14 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             else:
                 logger.warning(f"Could not resolve entity for {channel_identifier}, returning empty list")
                 news_data[original_identifier] = []
+
+            # Update progress if callback provided
+            if progress_callback:
+                channel_name = channel_info.get('name', 'Unknown Channel')
+                # Format the channel name to make it more readable
+                if len(channel_name) > 30:
+                    channel_name = channel_name[:27] + '...'
+                progress_callback(processed_channels, total_channels, channel_name)
 
         logger.info(f"Completed fetching messages from all {len(channels)} channels")
         return news_data
@@ -1181,116 +1334,6 @@ async def fetch_rss_feeds(feed_urls, time_range="1d", enable_retries=False, debu
     
     logger.info(f"Completed fetching all RSS feeds")
     return feeds_data
-
-async def fetch_channel_sample_messages(channel_identifier, message_limit=5):
-    """
-    Fetch a small sample of recent messages from a Telegram channel without saving them to the database.
-    This is used for channel analysis and clustering.
-    
-    Args:
-        channel_identifier: The Telegram channel ID or URL
-        message_limit: Maximum number of messages to fetch (default: 5)
-        
-    Returns:
-        A list of message dictionaries with basic information
-    """
-    logger.info(f"Fetching {message_limit} sample messages from {channel_identifier} for analysis")
-    
-    # Extract channel ID from URL if needed
-    channel_id = None
-    if channel_identifier.startswith("https://t.me/"):
-        parts = channel_identifier.split('/')
-        if len(parts) > 3:
-            channel_id = parts[-1]
-        elif len(parts) == 3 and parts[-1]:
-            channel_id = parts[-1]
-        else:
-            channel_id = channel_identifier
-    elif channel_identifier.startswith("tg-channel:"):
-        # Handle our special format for numeric IDs
-        channel_id = channel_identifier.split(':')[1]
-    else:
-        channel_id = channel_identifier
-        
-    # Create a new client session just for this request
-    client = TelegramClient(session_file, api_id, api_hash)
-    
-    try:
-        # Connect and check authorization
-        await client.connect()
-        if not await client.is_user_authorized():
-            logger.error(f"User not authorized to fetch messages from {channel_identifier}")
-            return []
-            
-        # Get the channel entity - handle both username and numeric ID
-        try:
-            if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
-                # This is a numeric ID, use PeerChannel
-                from telethon.tl.types import PeerChannel
-                
-                # Convert the numeric ID to integer
-                channel_id_int = int(channel_id)
-                
-                # Create PeerChannel object
-                peer = PeerChannel(channel_id_int)
-                
-                # Get entity directly from peer
-                entity = await client.get_entity(peer)
-                logger.info(f"Successfully resolved numeric channel ID {channel_id} to entity")
-            else:
-                # This is a username or handle
-                entity = await client.get_entity(channel_id)
-                logger.info(f"Successfully resolved channel username {channel_id} to entity")
-        except Exception as e:
-            logger.error(f"Could not find channel '{channel_id}': {e}")
-            logger.error(traceback.format_exc())
-            return []
-            
-        # Fetch messages
-        try:
-            history = await client(GetHistoryRequest(
-                peer=entity,
-                offset_id=0,
-                offset_date=None,
-                add_offset=0,
-                limit=message_limit,
-                max_id=0,
-                min_id=0,
-                hash=0
-            ))
-            
-            messages = history.messages
-            logger.info(f"Fetched {len(messages)} sample messages from {channel_identifier}")
-            
-            # Convert to simplified format - we don't need all the details
-            sample_messages = []
-            for message in messages:
-                if not message.message:  # Skip empty messages
-                    continue
-                    
-                sample_message = {
-                    "id": message.id,
-                    "date": message.date.isoformat() if message.date else None,
-                    "text": message.message
-                }
-                sample_messages.append(sample_message)
-                
-            return sample_messages
-            
-        except Exception as e:
-            logger.error(f"Error fetching messages from {channel_identifier}: {e}")
-            logger.error(traceback.format_exc())
-            return []
-            
-    except Exception as e:
-        logger.error(f"Error in fetch_channel_sample_messages for {channel_identifier}: {e}")
-        logger.error(traceback.format_exc())
-        return []
-        
-    finally:
-        # Always disconnect the client
-        await client.disconnect()
-        logger.debug(f"Disconnected client after fetching sample messages from {channel_identifier}")
 
 async def main():
     """

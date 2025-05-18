@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Settings.css';
 
 // Add API_URL from environment variables
@@ -28,7 +28,7 @@ const Settings = ({ onFetchSummaries }) => {
   const [subscriptionError, setSubscriptionError] = useState('');
 
   // State for active tab
-  const [activeTab, setActiveTab] = useState('default-sources');
+  const [activeTab, setActiveTab] = useState('telegram-export');
 
   // State for Telegram export
   const [telegramFile, setTelegramFile] = useState(null);
@@ -38,6 +38,20 @@ const Settings = ({ onFetchSummaries }) => {
   const [selectedChannels, setSelectedChannels] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [clustering, setClustering] = useState(false);
+  
+  // State for drag and drop
+  const [isDragging, setIsDragging] = useState(false);
+  
+  // State for progress tracking
+  const [progress, setProgress] = useState({
+    clusteringComplete: false,
+    processedChannels: 0,
+    totalChannels: 0,
+    currentChannel: null
+  });
+  
+  // Create a ref for the file input
+  const fileInputRef = useRef(null);
 
   // Fetch sources from API on component mount
   useEffect(() => {
@@ -253,17 +267,58 @@ const Settings = ({ onFetchSummaries }) => {
     setActiveTab(tab);
   };
 
-  const handleFileChange = (e) => {
+  // Drag and drop handlers
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFiles(files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file type
-      if (file.type !== 'application/json') {
-        setFileError('Please upload a JSON file');
-        return;
-      }
-      
-      setTelegramFile(file);
-      setFileError('');
+      handleFiles(file);
+    }
+  };
+
+  const handleFiles = (file) => {
+    // Check file type
+    if (file.type !== 'application/json') {
+      setFileError('Please upload a JSON file');
+      return;
+    }
+    
+    setTelegramFile(file);
+    setFileError('');
+  };
+
+  const handleClickUploadArea = () => {
+    // Trigger the hidden file input when the upload area is clicked
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -314,6 +369,20 @@ const Settings = ({ onFetchSummaries }) => {
            !topicChannelIds.every(id => selectedChannels.includes(id));
   };
 
+  // Check if we should show language tags (only when multiple languages)
+  const shouldShowLanguages = () => {
+    if (!channelTopics || channelTopics.length === 0) return false;
+    
+    const uniqueLanguages = new Set();
+    channelTopics.forEach(topic => {
+      if (topic.language) {
+        uniqueLanguages.add(topic.language);
+      }
+    });
+    
+    return uniqueLanguages.size > 1;
+  };
+
   const uploadTelegramExport = async () => {
     if (!telegramFile) {
       setFileError('Please select a file to upload');
@@ -323,10 +392,21 @@ const Settings = ({ onFetchSummaries }) => {
     setUploading(true);
     setFileError('');
     
+    // Reset progress tracking
+    setProgress({
+      clusteringComplete: false,
+      processedChannels: 0,
+      totalChannels: 0,
+      currentChannel: null
+    });
+    
     try {
       // Create FormData and append file
       const formData = new FormData();
       formData.append('file', telegramFile);
+      
+      // Generate a request ID for tracking progress
+      const requestId = Date.now().toString();
       
       // Upload the file to backend
       const response = await fetch(`${API_URL}/upload-telegram-export`, {
@@ -363,8 +443,47 @@ const Settings = ({ onFetchSummaries }) => {
       
       setChannels(data.channels);
       
+      // Update progress tracking
+      setProgress(prev => ({
+        ...prev,
+        totalChannels: data.channels.length
+      }));
+      
+      // Set up event source for clustering progress
+      const clusterEventSource = new EventSource(`${API_URL}/channel-progress?requestId=${requestId}`);
+      
+      clusterEventSource.onmessage = (event) => {
+        const progressData = JSON.parse(event.data);
+        setProgress(prev => ({
+          ...prev,
+          processedChannels: progressData.processedChannels,
+          totalChannels: progressData.totalChannels,
+          currentChannel: progressData.currentChannel
+        }));
+        
+        // Close the event source when clustering is complete
+        if (progressData.currentChannel === "Clustering complete!") {
+          clusterEventSource.close();
+          setProgress(prev => ({
+            ...prev,
+            clusteringComplete: true,
+            processedChannels: channelTopics.length,
+            totalChannels: channelTopics.length,
+            currentChannel: "Analysis complete"
+          }));
+        }
+      };
+      
+      clusterEventSource.onerror = () => {
+        console.error('EventSource error');
+        clusterEventSource.close();
+      };
+      
       // Cluster the channels
-      await clusterChannels(data.channels);
+      await clusterChannels(data.channels, requestId);
+      
+      // Close the event source
+      clusterEventSource.close();
       
     } catch (err) {
       console.error('Error uploading Telegram export:', err);
@@ -374,19 +493,31 @@ const Settings = ({ onFetchSummaries }) => {
     }
   };
 
-  const clusterChannels = async (channelsData) => {
+  const clusterChannels = async (channelsData, requestId) => {
     setClustering(true);
     
     try {
+      // Update progress for clustering start
+      setProgress(prev => ({
+        ...prev,
+        clusteringComplete: false,
+        processedChannels: 0,
+        totalChannels: channelsData.length
+      }));
+      
       // Send channels to clustering endpoint
       const response = await fetch(`${API_URL}/cluster-channels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'X-Request-ID': requestId || Date.now().toString()
         },
-        body: JSON.stringify({ channels: channelsData })
+        body: JSON.stringify({ 
+          channels: channelsData,
+          simplified_fetching: true // Tell backend to skip link parsing for initial clustering
+        })
       });
       
       // Check content type before trying to parse as JSON
@@ -417,6 +548,15 @@ const Settings = ({ onFetchSummaries }) => {
       }
       
       setChannelTopics(data.topics);
+      
+      // Update progress for completed clustering
+      setProgress(prev => ({
+        ...prev,
+        clusteringComplete: true,
+        processedChannels: channelTopics.length,
+        totalChannels: channelTopics.length,
+        currentChannel: "Analysis complete"
+      }));
       
       // Select only the first 2 channels in each topic
       const initialSelectedChannels = [];
@@ -477,6 +617,14 @@ const Settings = ({ onFetchSummaries }) => {
     setUploading(true);
     setFileError('');
     
+    // Reset progress tracking for channel processing
+    setProgress(prev => ({
+      ...prev,
+      processedChannels: 0,
+      totalChannels: selectedChannelData.length,
+      currentChannel: null
+    }));
+    
     try {
       // First save channels to database and fetch messages
       console.log('Saving selected channels to database:', selectedChannelData);
@@ -494,6 +642,29 @@ const Settings = ({ onFetchSummaries }) => {
         })
       });
       
+      // Set up event source for progress updates
+      const eventSource = new EventSource(`${API_URL}/channel-progress?requestId=${Date.now()}`);
+      
+      eventSource.onmessage = (event) => {
+        const progressData = JSON.parse(event.data);
+        setProgress(prev => ({
+          ...prev,
+          processedChannels: progressData.processedChannels,
+          totalChannels: progressData.totalChannels,
+          currentChannel: progressData.currentChannel
+        }));
+        
+        // Close the event source when all channels are processed
+        if (progressData.processedChannels >= progressData.totalChannels) {
+          eventSource.close();
+        }
+      };
+      
+      eventSource.onerror = () => {
+        console.error('EventSource error');
+        eventSource.close();
+      };
+      
       if (!saveResponse.ok) {
         const errorData = await saveResponse.json();
         throw new Error(errorData.error || `Server error: ${saveResponse.status}`);
@@ -509,6 +680,10 @@ const Settings = ({ onFetchSummaries }) => {
       
       console.log('Generating summaries for Telegram channels:', { period, sources: channelUrls });
       onFetchSummaries({ period, sources: channelUrls });
+      
+      // Close the event source after fetch is complete
+      eventSource.close();
+      
     } catch (err) {
       console.error('Error processing Telegram channels:', err);
       setFileError(err.message || 'Failed to process channels');
@@ -539,18 +714,180 @@ const Settings = ({ onFetchSummaries }) => {
       {/* Tab Navigation */}
       <div className="settings-tabs">
         <button 
-          className={`tab-button ${activeTab === 'default-sources' ? 'active' : ''}`}
-          onClick={() => handleTabChange('default-sources')}
-        >
-          Default Sources
-        </button>
-        <button 
           className={`tab-button ${activeTab === 'telegram-export' ? 'active' : ''}`}
           onClick={() => handleTabChange('telegram-export')}
         >
           Telegram Export
         </button>
+        <button 
+          className={`tab-button ${activeTab === 'default-sources' ? 'active' : ''}`}
+          onClick={() => handleTabChange('default-sources')}
+        >
+          Default Sources
+        </button>
       </div>
+      
+      {/* Telegram Export Tab */}
+      {activeTab === 'telegram-export' && (
+        <div className="telegram-export-section">
+          <div className="telegram-export-instructions">
+            <h3>How to Export Data from Telegram</h3>
+            <ol>
+              <li>Open the Telegram app and click on <strong>Settings</strong> (⚙️)</li>
+              <li>Go to <strong>Privacy and Security</strong> → <strong>Export Telegram Data</strong></li>
+              <li>Select <strong>Export chats and channels list</strong> (you don't need chat history)</li>
+              <li>Format: <strong>JSON</strong></li>
+              <li>Click <strong>Export</strong> and download the file</li>
+              <li>Upload the JSON file below</li>
+            </ol>
+          </div>
+          
+          <div className="file-upload-section">
+            <div 
+              className={`file-upload-dropzone ${isDragging ? 'dragging' : ''} ${telegramFile ? 'has-file' : ''}`}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={handleClickUploadArea}
+            >
+              <div className="dropzone-content">
+                <span className="upload-icon">📁</span>
+                <span className="upload-text">
+                  {isDragging ? 'Drop Here' : 
+                   telegramFile ? `Selected: ${telegramFile.name}` : 
+                   'Drag & Drop Telegram Export File or Click to Browse'}
+                </span>
+                <input 
+                  type="file" 
+                  ref={fileInputRef}
+                  accept=".json" 
+                  onChange={handleFileInputChange}
+                  className="file-input hidden"
+                />
+              </div>
+            </div>
+            
+            {telegramFile && (
+              <div className="selected-file">
+                <button 
+                  className="upload-file-btn" 
+                  onClick={uploadTelegramExport}
+                  disabled={uploading || clustering}
+                >
+                  {uploading ? 'Uploading...' : clustering ? 'Analyzing...' : 'Upload & Analyze'}
+                </button>
+              </div>
+            )}
+            {fileError && <p className="error-message">{fileError}</p>}
+          </div>
+          
+          {/* Progress indicators for clustering and channel processing */}
+          {(clustering || uploading || progress.processedChannels > 0) && (
+            <div className="progress-section">
+              {clustering && (
+                <div className="progress-item">
+                  <h4>Analyzing Channels...</h4>
+                  <div className="progress-bar">
+                    <div className="progress-bar-inner indeterminate"></div>
+                  </div>
+                </div>
+              )}
+              
+              {progress.clusteringComplete && progress.totalChannels > 0 && (
+                <div className="progress-item">
+                  <h4>
+                    Processing Channels: {progress.processedChannels} of {progress.totalChannels}
+                  </h4>
+                  {progress.currentChannel && (
+                    <div className="current-channel">
+                      <span className="channel-indicator">Current Channel:</span> 
+                      <span className="channel-name">{progress.currentChannel}</span>
+                    </div>
+                  )}
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-bar-inner" 
+                      style={{width: `${(progress.processedChannels / progress.totalChannels) * 100}%`}}
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {channelTopics.length > 0 && (
+            <form onSubmit={handleTelegramSubmit}>
+              <div className="channel-topics-section">
+                <h3>Telegram Channels by Topic</h3>
+                <p className="select-channels-prompt">Select channels to include in the summaries:</p>
+                
+                <div className="channel-topics-grid">
+                  {channelTopics.map((topic, index) => (
+                    <div key={index} className="channel-topic-block">
+                      <div className="topic-header">
+                        <label className="topic-checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={isTopicSelected(topic)}
+                            onChange={() => handleTopicToggle(topic)}
+                            className="topic-checkbox"
+                            ref={el => {
+                              if (el) {
+                                el.indeterminate = isTopicPartiallySelected(topic);
+                              }
+                            }}
+                          />
+                          <h4>{topic.topic} ({topic.channels.length})</h4>
+                          {shouldShowLanguages() && topic.language && (
+                            <span className="language-tag">{topic.language.toUpperCase()}</span>
+                          )}
+                        </label>
+                      </div>
+                      <div className="channel-list-container">
+                        {topic.channels.map(channel => (
+                          <div key={channel.id} className="channel-item">
+                            <label className="channel-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={selectedChannels.includes(channel.id)}
+                                onChange={() => handleChannelToggle(channel.id)}
+                              />
+                              <span className="channel-name" title={channel.name}>
+                                {channel.name}
+                                {channel.left && <span className="left-indicator"> (left)</span>}
+                                {channel.last_message_date && (
+                                  <span className="last-message-date" title={`Last message: ${channel.last_message_date}`}>
+                                    {' '}{new Date(channel.last_message_date).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="selected-count">
+                  Selected channels: {selectedChannels.length}
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={selectedChannels.length === 0 || uploading}
+                >
+                  {uploading ? 'Processing Channels...' : 'Generate Summaries from Telegram'}
+                </button>
+                {uploading && <p className="processing-note">Fetching messages from channels. This may take a moment...</p>}
+              </div>
+            </form>
+          )}
+        </div>
+      )}
       
       {/* Default Sources Tab */}
       {activeTab === 'default-sources' && (
@@ -611,7 +948,7 @@ const Settings = ({ onFetchSummaries }) => {
               <div className="category-header">
                 <h3>Custom Sources</h3>
               </div>
-              <div className="source-list-container-grid">
+              <div className="source-list-container-grid blurred-content">
                 <div className="custom-source-item subscription-message">
                   {subscriptionSubmitted ? (
                     <div className="subscription-success">
@@ -665,119 +1002,6 @@ const Settings = ({ onFetchSummaries }) => {
         </form>
           )}
         </>
-      )}
-      
-      {/* Telegram Export Tab */}
-      {activeTab === 'telegram-export' && (
-        <div className="telegram-export-section">
-          <div className="telegram-export-instructions">
-            <h3>How to Export Data from Telegram</h3>
-            <ol>
-              <li>Open the Telegram app and click on <strong>Settings</strong> (⚙️)</li>
-              <li>Go to <strong>Privacy and Security</strong> → <strong>Export Telegram Data</strong></li>
-              <li>Select <strong>Export chats and channels list</strong> (you don't need chat history)</li>
-              <li>Format: <strong>JSON</strong></li>
-              <li>Click <strong>Export</strong> and download the file</li>
-              <li>Upload the JSON file below</li>
-            </ol>
-          </div>
-          
-          <div className="file-upload-section">
-            <label className="file-upload-label">
-              <span>Upload Telegram Export (JSON file)</span>
-              <input 
-                type="file" 
-                accept=".json" 
-                onChange={handleFileChange}
-                className="file-input"
-              />
-            </label>
-            {telegramFile && (
-              <div className="selected-file">
-                <span>Selected file: {telegramFile.name}</span>
-                <button 
-                  className="upload-file-btn" 
-                  onClick={uploadTelegramExport}
-                  disabled={uploading || clustering}
-                >
-                  {uploading ? 'Uploading...' : clustering ? 'Analyzing...' : 'Upload & Analyze'}
-                </button>
-              </div>
-            )}
-            {fileError && <p className="error-message">{fileError}</p>}
-          </div>
-          
-          {channelTopics.length > 0 && (
-            <form onSubmit={handleTelegramSubmit}>
-              <div className="channel-topics-section">
-                <h3>Telegram Channels by Topic</h3>
-                <p className="select-channels-prompt">Select channels to include in the summaries:</p>
-                
-                <div className="channel-topics-grid">
-                  {channelTopics.map((topic, index) => (
-                    <div key={index} className="channel-topic-block">
-                      <div className="topic-header">
-                        <label className="topic-checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={isTopicSelected(topic)}
-                            onChange={() => handleTopicToggle(topic)}
-                            className="topic-checkbox"
-                            ref={el => {
-                              if (el) {
-                                el.indeterminate = isTopicPartiallySelected(topic);
-                              }
-                            }}
-                          />
-                          <h4>{topic.topic} ({topic.channels.length})</h4>
-                          {topic.language && (
-                            <span className="language-tag">{topic.language.toUpperCase()}</span>
-                          )}
-                        </label>
-                      </div>
-                      <div className="channel-list-container">
-                        {topic.channels.map(channel => (
-                          <div key={channel.id} className="channel-item">
-                            <label className="channel-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={selectedChannels.includes(channel.id)}
-                                onChange={() => handleChannelToggle(channel.id)}
-                              />
-                              <span className="channel-name" title={channel.name}>
-                                {channel.name}
-                                {channel.left && <span className="left-indicator"> (left)</span>}
-                                {channel.last_message_date && (
-                                  <span className="last-message-date" title={`Last message: ${channel.last_message_date}`}>
-                                    {' '}{new Date(channel.last_message_date).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </span>
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="selected-count">
-                  Selected channels: {selectedChannels.length}
-                </div>
-              </div>
-              
-              <div className="form-actions">
-                <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  disabled={selectedChannels.length === 0 || uploading}
-                >
-                  {uploading ? 'Processing Channels...' : 'Generate Summaries from Telegram'}
-                </button>
-                {uploading && <p className="processing-note">Fetching messages from channels. This may take a moment...</p>}
-              </div>
-            </form>
-          )}
-        </div>
       )}
     </div>
   );

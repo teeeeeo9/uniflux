@@ -919,4 +919,182 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: calc(100% - 50px);
+}
+
+/* Drag and Drop styles */
+.file-upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 2px dashed #d1d5db;
+  border-radius: 0.5rem;
+  background-color: #f9fafb;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 1rem;
+}
+
+.file-upload-dropzone:hover {
+  border-color: var(--color-primary);
+  background-color: #f3f4f8;
+}
+
+.file-upload-dropzone.dragging {
+  border-color: var(--color-primary);
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+.file-upload-dropzone.has-file {
+  border-color: #10b981;
+  background-color: rgba(16, 185, 129, 0.1);
+}
+
+.dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.upload-icon {
+  font-size: 2.5rem;
+  color: #6b7280;
+}
+
+.upload-text {
+  font-size: 1rem;
+  color: #4b5563;
+  text-align: center;
+  font-weight: 500;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Progress bar styles */
+.progress-section {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.progress-item {
+  margin-bottom: 1rem;
+}
+
+.progress-item:last-child {
+  margin-bottom: 0;
+}
+
+.progress-item h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.progress-bar {
+  height: 0.5rem;
+  background-color: #e5e7eb;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.progress-bar-inner {
+  height: 100%;
+  background-color: var(--color-primary);
+  border-radius: 0.25rem;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-inner.indeterminate {
+  width: 30%;
+  animation: progress-indeterminate 1.5s infinite cubic-bezier(0.65, 0.05, 0.36, 1);
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Fix subscribe section styling to match blurred content */
+.blurred-content {
+  backdrop-filter: blur(8px);
+  background-color: rgba(255, 255, 255, 0.2);
+  position: relative;
+}
+
+/* For older browsers that don't support backdrop-filter */
+@supports not (backdrop-filter: blur(8px)) {
+  .blurred-content {
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .file-upload-dropzone {
+    padding: 1.5rem 1rem;
+  }
+  
+  .upload-icon {
+    font-size: 2rem;
+  }
+  
+  .upload-text {
+    font-size: 0.9rem;
+  }
+  
+  .progress-item h4 {
+    font-size: 0.8rem;
+  }
+}
+
+/* Current channel indicator styling */
+.current-channel {
+  margin: 0.25rem 0 0.5rem 0;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  padding-left: 0.25rem;
+  overflow: hidden;
+  animation: pulse 2s infinite;
+}
+
+.channel-indicator {
+  font-weight: 500;
+  margin-right: 0.5rem;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.channel-name {
+  font-weight: 500;
+  color: var(--color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90%;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+  }
 } 
