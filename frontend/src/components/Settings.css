@@ -364,6 +364,30 @@
   width: 100%;
 }
 
+/* Add styles for selection controls */
+.selection-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0 0.5rem;
+}
+
+.toggle-selection-btn {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.toggle-selection-btn:hover {
+  background-color: var(--color-primary-dark);
+}
+
 .remove-source-btn {
   background: none;
   border: none;
@@ -757,12 +781,19 @@
   background-color: #f1f5f9;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
 }
 
 .topic-header h4 {
   margin: 0;
-  font-size: 0.95rem;
-  display: inline;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-word;
+  line-height: 1.4;
+  flex: 1;
+  padding-right: 10px;
 }
 
 .topic-checkbox-label {
@@ -914,11 +945,12 @@
 
 /* Language-specific colors */
 .topic-header h4 {
-  display: inline-block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: calc(100% - 50px);
+  display: block;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.4;
+  margin-right: 5px;
 }
 
 /* Drag and Drop styles */

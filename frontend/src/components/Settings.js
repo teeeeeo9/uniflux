@@ -147,6 +147,42 @@ const Settings = ({ onFetchSummaries }) => {
     }
   };
 
+  // Toggle all sources selection
+  const toggleAllSources = () => {
+    if (selectedSources.length === 0) {
+      // Select all sources
+      const allUrls = [];
+      Object.values(categories).forEach(sourcesList => {
+        sourcesList.forEach(source => {
+          if (!allUrls.includes(source.url)) {
+            allUrls.push(source.url);
+          }
+        });
+      });
+      setSelectedSources(allUrls);
+    } else {
+      // Remove all selections
+      setSelectedSources([]);
+    }
+  };
+  
+  // Toggle all channels selection
+  const toggleAllChannels = () => {
+    if (selectedChannels.length === 0) {
+      // Select all channels
+      const allChannelIds = [];
+      channelTopics.forEach(topic => {
+        topic.channels.forEach(channel => {
+          allChannelIds.push(channel.id);
+        });
+      });
+      setSelectedChannels(allChannelIds);
+    } else {
+      // Remove all selections
+      setSelectedChannels([]);
+    }
+  };
+
   // Check if all sources in a category are selected
   const isCategorySelected = (category) => {
     const categoryUrls = categories[category].map(source => source.url);
@@ -820,7 +856,16 @@ const Settings = ({ onFetchSummaries }) => {
             <form onSubmit={handleTelegramSubmit}>
               <div className="channel-topics-section">
                 <h3>Telegram Channels by Topic</h3>
-                <p className="select-channels-prompt">Select channels to include in the summaries:</p>
+                <div className="selection-controls">
+                  <p className="select-channels-prompt">Select channels to include in the summaries:</p>
+                  <button 
+                    type="button" 
+                    className="toggle-selection-btn"
+                    onClick={toggleAllChannels}
+                  >
+                    {selectedChannels.length === 0 ? 'Select All' : 'Remove All Selection'}
+                  </button>
+                </div>
                 
                 <div className="channel-topics-grid">
                   {channelTopics.map((topic, index) => (
@@ -905,86 +950,97 @@ const Settings = ({ onFetchSummaries }) => {
             {Object.keys(categories).length === 0 ? (
               <p className="no-sources">No sources available in the database.</p>
             ) : (
-              Object.entries(categories).map(([category, sources]) => (
-                <div key={category} className="source-category-block">
-                  <div className="category-header">
-                    <label className="category-checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={isCategorySelected(category)}
-                        onChange={() => handleCategoryToggle(category)}
-                        className="category-checkbox"
-                        ref={el => {
-                          if (el) {
-                            el.indeterminate = isCategoryPartiallySelected(category);
-                          }
-                        }}
-                      />
-                      <h3>{category}</h3>
-                    </label>
-                  </div>
-                  <div className="source-list-container-grid">
-                    {sources.map(source => (
-                      <div key={source.id} className="source-item">
-                        <label className="checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={selectedSources.includes(source.url)}
-                            onChange={() => handleSourceToggle(source.url)}
-                          />
-                          <span className="source-name" title={source.url}>
-                            {source.name}
-                          </span>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+              <>
+                <div className="selection-controls">
+                  <button 
+                    type="button" 
+                    className="toggle-selection-btn"
+                    onClick={toggleAllSources}
+                  >
+                    {selectedSources.length === 0 ? 'Select All' : 'Remove All Selection'}
+                  </button>
                 </div>
-              ))
-            )}
-
-            {/* Custom Sources section as a category block - email subscription */}
-            <div className="source-category-block disabled-feature custom-sources-block">
-              <div className="category-header">
-                <h3>Custom Sources</h3>
-              </div>
-              <div className="source-list-container-grid blurred-content">
-                <div className="custom-source-item subscription-message">
-                  {subscriptionSubmitted ? (
-                    <div className="subscription-success">
-                      <span className="success-icon">✓</span>
-                      <p>Thank you for subscribing!</p>
-                      <p>We'll notify you when custom sources are available.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p>Enter your email to get access to custom news sources feature.</p>
-                      <div className="email-subscription-form">
-                        <input 
-                          type="email" 
-                          className={`email-input ${subscriptionError ? 'input-error' : ''}`}
-                          placeholder="Your email address"
-                          aria-label="Email address for subscription"
-                          value={email}
-                          onChange={handleEmailChange}
+                {Object.entries(categories).map(([category, sources]) => (
+                  <div key={category} className="source-category-block">
+                    <div className="category-header">
+                      <label className="category-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={isCategorySelected(category)}
+                          onChange={() => handleCategoryToggle(category)}
+                          className="category-checkbox"
+                          ref={el => {
+                            if (el) {
+                              el.indeterminate = isCategoryPartiallySelected(category);
+                            }
+                          }}
                         />
-                        <button 
-                          className="subscribe-button" 
-                          type="button"
-                          onClick={handleSubscribe}
-                        >
-                          Subscribe
-                        </button>
-                      </div>
-                      {subscriptionError && (
-                        <p className="error-message">{subscriptionError}</p>
+                        <h3>{category}</h3>
+                      </label>
+                    </div>
+                    <div className="source-list-container-grid">
+                      {sources.map(source => (
+                        <div key={source.id} className="source-item">
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={selectedSources.includes(source.url)}
+                              onChange={() => handleSourceToggle(source.url)}
+                            />
+                            <span className="source-name" title={source.url}>
+                              {source.name}
+                            </span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Custom Sources section as a category block - email subscription */}
+                <div className="source-category-block disabled-feature custom-sources-block">
+                  <div className="category-header">
+                    <h3>Custom Sources</h3>
+                  </div>
+                  <div className="source-list-container-grid blurred-content">
+                    <div className="custom-source-item subscription-message">
+                      {subscriptionSubmitted ? (
+                        <div className="subscription-success">
+                          <span className="success-icon">✓</span>
+                          <p>Thank you for subscribing!</p>
+                          <p>We'll notify you when custom sources are available.</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p>Enter your email to get access to custom news sources feature.</p>
+                          <div className="email-subscription-form">
+                            <input 
+                              type="email" 
+                              className={`email-input ${subscriptionError ? 'input-error' : ''}`}
+                              placeholder="Your email address"
+                              aria-label="Email address for subscription"
+                              value={email}
+                              onChange={handleEmailChange}
+                            />
+                            <button 
+                              className="subscribe-button" 
+                              type="button"
+                              onClick={handleSubscribe}
+                            >
+                              Subscribe
+                            </button>
+                          </div>
+                          {subscriptionError && (
+                            <p className="error-message">{subscriptionError}</p>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
+                    </div>
+                    {/* Custom source inputs remain hidden */}
+                  </div>
                 </div>
-                {/* Custom source inputs remain hidden */}
-              </div>
-            </div>
+              </>
+            )}
           </div>
           <div className="selected-count">
             Selected sources: {selectedSources.length}

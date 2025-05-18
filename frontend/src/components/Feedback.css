@@ -4,10 +4,21 @@
   right: -100px;
   z-index: 1000;
   transition: right 0.3s ease;
+  padding-left: 30px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.feedback-container.hovered {
+  right: 20px;
 }
 
 .feedback-container:hover {
   right: 20px;
+}
+
+.feedback-container::after {
+  /* Remove this completely */
 }
 
 .feedback-button {
@@ -16,13 +27,13 @@
   background-color: #333;
   color: white;
   border: none;
-  border-radius: 0;
-  padding: 12px 20px 12px 15px;
+  border-radius: 4px;
+  padding: 12px 20px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   width: 130px;
   justify-content: center;
   text-transform: uppercase;
@@ -30,16 +41,16 @@
 }
 
 .feedback-button::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 30px;
-  background-color: #333;
-  border-radius: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  z-index: -1;
+  /* content: ''; */
+  /* position: absolute; */
+  /* left: 0; */
+  /* top: 0; */
+  /* bottom: 0; */
+  /* width: 30px; */
+  /* background-color: #333; */
+  /* border-radius: 0; */
+  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); */
+  /* z-index: -1; */
 }
 
 .feedback-button:hover {

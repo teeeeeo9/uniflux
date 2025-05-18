@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Feedback.css';
 
 // Add API_URL from environment variables
@@ -14,6 +14,35 @@ const Feedback = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Add state to track hover status
+  const [isHovered, setIsHovered] = useState(false);
+  // Timer reference for hover delay
+  const hoverTimerRef = useRef(null);
+
+  const handleMouseEnter = () => {
+    // Clear any existing timer
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+    }
+    // Set hovered state to true immediately
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    // Add a small delay before setting hovered to false
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovered(false);
+    }, 100); // 100ms delay helps prevent flickering
+  };
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -84,7 +113,11 @@ const Feedback = () => {
   };
 
   return (
-    <div className="feedback-container">
+    <div 
+      className={`feedback-container ${isHovered ? 'hovered' : ''}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <button 
         className="feedback-button"
         onClick={handleOpen}
