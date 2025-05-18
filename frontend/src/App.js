@@ -6,6 +6,7 @@ import Feedback from './components/Feedback';
 import Subscription from './components/Subscription';
 import logo from './assets/image.png';
 import './App.css';
+import { Box, LinearProgress, Typography, Alert } from '@mui/material';
 
 // Add API_URL from environment variables
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -242,7 +243,7 @@ function App() {
   // Determine if we should enable the generate insights button
   const showGenerateInsightsButton = !!selectedTopic && !hasInsights;
 
-  // Function to scroll to messages section regardless of active tab
+  // Create a function to scroll to messages section regardless of active tab
   const scrollToMessages = () => {
     if (topicDetailsRef.current) {
       topicDetailsRef.current.scrollToMessages();

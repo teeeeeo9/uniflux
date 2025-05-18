@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './Settings.css';
+import { ChannelProgress, generateRequestId } from './ChannelProgress';
 
 // Add API_URL from environment variables
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -52,6 +53,9 @@ const Settings = ({ onFetchSummaries }) => {
   
   // Create a ref for the file input
   const fileInputRef = useRef(null);
+
+  // Add a state for tracking the requestId
+  const [clusterRequestId, setClusterRequestId] = useState(null);
 
   // Fetch sources from API on component mount
   useEffect(() => {
@@ -428,6 +432,11 @@ const Settings = ({ onFetchSummaries }) => {
     setUploading(true);
     setFileError('');
     
+    // Generate a unique request ID for tracking progress
+    const requestId = generateRequestId();
+    console.log(`[DEBUG] Generated requestId for file upload: ${requestId}`);
+    setClusterRequestId(requestId);
+    
     // Reset progress tracking
     setProgress({
       clusteringComplete: false,
@@ -441,12 +450,14 @@ const Settings = ({ onFetchSummaries }) => {
       const formData = new FormData();
       formData.append('file', telegramFile);
       
-      // Generate a request ID for tracking progress
-      const requestId = Date.now().toString();
+      console.log(`[DEBUG] Uploading file with requestId: ${requestId}`);
       
       // Upload the file to backend
       const response = await fetch(`${API_URL}/upload-telegram-export`, {
         method: 'POST',
+        headers: {
+          'X-Request-ID': requestId
+        },
         body: formData
       });
       
@@ -459,7 +470,7 @@ const Settings = ({ onFetchSummaries }) => {
         } else {
           // If it's not JSON, get the text instead
           const errorText = await response.text();
-          console.error('Server returned non-JSON response:', errorText.substring(0, 200) + '...');
+          console.error('[DEBUG] Server returned non-JSON response:', errorText.substring(0, 200) + '...');
           throw new Error(`Server error: ${response.status}. The server did not return a valid JSON response.`);
         }
       }
@@ -467,72 +478,60 @@ const Settings = ({ onFetchSummaries }) => {
       // Verify we have JSON before parsing
       if (!contentType || !contentType.includes('application/json')) {
         const responseText = await response.text();
-        console.error('Server returned non-JSON response:', responseText.substring(0, 200) + '...');
+        console.error('[DEBUG] Server returned non-JSON response:', responseText.substring(0, 200) + '...');
         throw new Error('The server returned an invalid response format.');
       }
       
       const data = await response.json();
+      console.log(`[DEBUG] Upload response:`, data);
       
       if (!data.success) {
         throw new Error(data.error || 'Failed to process the file');
       }
       
       setChannels(data.channels);
+      console.log(`[DEBUG] Set ${data.channels.length} channels`);
       
-      // Update progress tracking
-      setProgress(prev => ({
-        ...prev,
-        totalChannels: data.channels.length
-      }));
+      // Now we'll cluster the channels using our fixed function
+      setClustering(true);
       
-      // Set up event source for clustering progress
-      const clusterEventSource = new EventSource(`${API_URL}/channel-progress?requestId=${requestId}`);
-      
-      clusterEventSource.onmessage = (event) => {
-        const progressData = JSON.parse(event.data);
-        setProgress(prev => ({
-          ...prev,
-          processedChannels: progressData.processedChannels,
-          totalChannels: progressData.totalChannels,
-          currentChannel: progressData.currentChannel
-        }));
-        
-        // Close the event source when clustering is complete
-        if (progressData.currentChannel === "Clustering complete!") {
-          clusterEventSource.close();
-          setProgress(prev => ({
-            ...prev,
-            clusteringComplete: true,
-            processedChannels: channelTopics.length,
-            totalChannels: channelTopics.length,
-            currentChannel: "Analysis complete"
-          }));
-        }
-      };
-      
-      clusterEventSource.onerror = () => {
-        console.error('EventSource error');
-        clusterEventSource.close();
-      };
-      
-      // Cluster the channels
-      await clusterChannels(data.channels, requestId);
-      
-      // Close the event source
-      clusterEventSource.close();
+      try {
+        console.log(`[DEBUG] Calling clusterChannels with requestId: ${requestId}`);
+        const clusterData = await clusterChannels(data.channels, requestId);
+        console.log(`[DEBUG] Cluster operation completed:`, clusterData);
+      } catch (clusterErr) {
+        console.error(`[DEBUG] Error during clustering:`, clusterErr);
+        setFileError(`Error analyzing channels: ${clusterErr.message}`);
+      } finally {
+        setClustering(false);
+      }
       
     } catch (err) {
-      console.error('Error uploading Telegram export:', err);
+      console.error('[DEBUG] Error uploading Telegram export:', err);
       setFileError(err.message || 'Failed to upload file');
     } finally {
       setUploading(false);
     }
   };
 
+  // First add a function to generate unique requestId
+  const generateRequestId = () => {
+    return Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
+  };
+
+  // Then find the existing clusterChannels function and modify it to include the requestId
   const clusterChannels = async (channelsData, requestId) => {
     setClustering(true);
     
     try {
+      // Generate a unique requestId if one wasn't provided
+      const newRequestId = requestId || generateRequestId();
+      console.log(`[DEBUG] Using requestId for clustering: ${newRequestId}`);
+      
+      // Save the requestId for progress tracking
+      setClusterRequestId(newRequestId);
+      console.log(`[DEBUG] Set clusterRequestId state to: ${newRequestId}`);
+      
       // Update progress for clustering start
       setProgress(prev => ({
         ...prev,
@@ -542,78 +541,69 @@ const Settings = ({ onFetchSummaries }) => {
       }));
       
       // Send channels to clustering endpoint
+      console.log(`[DEBUG] Sending ${channelsData.length} channels to cluster-channels endpoint with requestId: ${newRequestId}`);
       const response = await fetch(`${API_URL}/cluster-channels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'ngrok-skip-browser-warning': 'true',
-          'X-Request-ID': requestId || Date.now().toString()
+          'X-Request-ID': newRequestId
         },
         body: JSON.stringify({ 
           channels: channelsData,
-          simplified_fetching: true // Tell backend to skip link parsing for initial clustering
+          simplified_fetching: true, // Tell backend to skip link parsing for initial clustering
+          requestId: newRequestId // Include in body as well for redundancy
         })
       });
       
-      // Check content type before trying to parse as JSON
-      const contentType = response.headers.get('content-type');
+      // Check response status
+      console.log(`[DEBUG] cluster-channels response status: ${response.status}`);
+      
       if (!response.ok) {
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Server error: ${response.status}`);
-        } else {
-          // If it's not JSON, get the text instead
-          const errorText = await response.text();
-          console.error('Server returned non-JSON response:', errorText.substring(0, 200) + '...');
-          throw new Error(`Server error: ${response.status}. The server did not return a valid JSON response.`);
-        }
+        const errorText = await response.text();
+        console.error(`[DEBUG] Error response from cluster-channels: ${errorText}`);
+        throw new Error(`Error clustering channels: ${response.status} - ${errorText}`);
       }
       
-      // Verify we have JSON before parsing
-      if (!contentType || !contentType.includes('application/json')) {
-        const responseText = await response.text();
-        console.error('Server returned non-JSON response:', responseText.substring(0, 200) + '...');
-        throw new Error('The server returned an invalid response format.');
-      }
-      
+      // Parse response data
       const data = await response.json();
+      console.log(`[DEBUG] Received response data:`, data);
       
+      // Check response structure
       if (!data.success) {
-        throw new Error(data.error || 'Failed to cluster channels');
+        console.error('[DEBUG] Response indicates failure:', data);
+        throw new Error(data.error || "Server did not indicate success");
       }
       
-      setChannelTopics(data.topics);
+      // Set channel topics from response data
+      setChannelTopics(data.topics || []);
+      console.log(`[DEBUG] Set ${data.topics ? data.topics.length : 0} channel topics from response`);
       
-      // Update progress for completed clustering
+      // IMPORTANT: Remove the recursive call that was causing issues
+      // await clusterChannels(data.channels, newRequestId);
+      
+      console.log(`[DEBUG] Clustering operation completed successfully with requestId: ${newRequestId}`);
+      
+      // We're done clustering
+      setClustering(false);
+      
+      // Update progress to complete
       setProgress(prev => ({
         ...prev,
         clusteringComplete: true,
-        processedChannels: channelTopics.length,
-        totalChannels: channelTopics.length,
+        processedChannels: data.topics ? data.topics.length : 0,
+        totalChannels: data.topics ? data.topics.length : 0,
         currentChannel: "Analysis complete"
       }));
       
-      // Select only the first 2 channels in each topic
-      const initialSelectedChannels = [];
-      data.topics.forEach(topic => {
-        // Get up to the first 2 channels from each topic
-        const topChannels = topic.channels.slice(0, 2);
-        
-        // Add their IDs to the selected channels
-        topChannels.forEach(channel => {
-          initialSelectedChannels.push(channel.id);
-        });
-      });
-      
-      // Set initial selected channels
-      setSelectedChannels(initialSelectedChannels);
+      return data; // Return the data for further processing if needed
       
     } catch (err) {
-      console.error('Error clustering channels:', err);
-      setFileError(err.message || 'Failed to analyze channels');
-    } finally {
+      console.error(`[DEBUG] Error during channel clustering:`, err);
+      setError(err.message || "Failed to cluster channels");
       setClustering(false);
+      throw err; // Re-throw to allow handling by caller
     }
   };
 
@@ -849,6 +839,16 @@ const Settings = ({ onFetchSummaries }) => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          
+          {clustering && clusterRequestId && (
+            <div className="progress-container">
+              <h3>Channel Analysis Progress</h3>
+              <div className="debug-info" style={{marginBottom: '10px', fontSize: '12px', color: '#666'}}>
+                Request ID: {clusterRequestId}
+              </div>
+              <ChannelProgress requestId={clusterRequestId} key={clusterRequestId} />
             </div>
           )}
           

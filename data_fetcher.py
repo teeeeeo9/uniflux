@@ -534,7 +534,7 @@ def save_message_to_db(message_data):
         logger.error(traceback.format_exc())
         return None
 
-async def fetch_channel_sample_messages(channel_identifier, message_limit=5, skip_link_parsing=False):
+async def fetch_channel_sample_messages(channel_identifier, message_limit=5, skip_link_parsing=False, request_id=None):
     """
     Fetch a small sample of recent messages from a Telegram channel without saving them to the database.
     This is used for channel analysis and clustering.
@@ -543,11 +543,16 @@ async def fetch_channel_sample_messages(channel_identifier, message_limit=5, ski
         channel_identifier: The Telegram channel ID or URL
         message_limit: Maximum number of messages to fetch (default: 5)
         skip_link_parsing: If True, don't extract links from messages (for faster initial clustering)
+        request_id: Optional request ID for tracking progress
         
     Returns:
         A list of message dictionaries with basic information
     """
-    logger.info(f"Fetching {message_limit} sample messages from {channel_identifier} for analysis")
+    logger.info(f"Fetching {message_limit} sample messages from {channel_identifier} for analysis with request_id: {request_id}")
+    
+    if request_id:
+        # Log this attempt so we can see it's being properly called with request_id
+        logger.info(f"Sample message fetch for request_id: {request_id}, channel: {channel_identifier}")
     
     # Extract channel ID from URL if needed
     channel_id = None
@@ -577,6 +582,9 @@ async def fetch_channel_sample_messages(channel_identifier, message_limit=5, ski
             
         # Get the channel entity - handle both username and numeric ID
         try:
+            if request_id:
+                logger.info(f"Resolving entity for {channel_identifier} (request_id: {request_id})")
+                
             if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
                 # This is a numeric ID, use PeerChannel
                 from telethon.tl.types import PeerChannel
@@ -601,6 +609,9 @@ async def fetch_channel_sample_messages(channel_identifier, message_limit=5, ski
             
         # Fetch messages
         try:
+            if request_id:
+                logger.info(f"Fetching messages for {channel_identifier} (request_id: {request_id})")
+                
             history = await client(GetHistoryRequest(
                 peer=entity,
                 offset_id=0,
@@ -633,6 +644,9 @@ async def fetch_channel_sample_messages(channel_identifier, message_limit=5, ski
                     sample_message["links"] = links
                 
                 sample_messages.append(sample_message)
+            
+            if request_id:
+                logger.info(f"Successfully fetched and processed {len(sample_messages)} messages for {channel_identifier} (request_id: {request_id})")
                 
             return sample_messages
             
@@ -668,7 +682,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
         A dictionary where keys are the original channel identifiers and values are lists of
         message IDs in the database.
     """
-    logger.info(f"Starting to fetch messages from {len(channels)} Telegram channels")
+    logger.info(f"Starting to fetch messages from {len(channels)} Telegram channels with request_id: {request_id}")
     
     # Normalize channels to ensure we have a consistent format
     normalized_channels = []
@@ -683,9 +697,23 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
     
     logger.debug(f"Channels to fetch: {normalized_channels}")
     
+    # Call progress_callback with initial state
+    if progress_callback:
+        try:
+            logger.info(f"Calling initial progress callback with request_id: {request_id}")
+            progress_callback(0, len(normalized_channels), "Initializing Telegram client...")
+        except Exception as e:
+            logger.error(f"Error in initial progress callback: {e}")
+            logger.error(traceback.format_exc())
+    
     client = await authorize_client()
     if not client:
         logger.error("Failed to authorize client. Exiting.")
+        if progress_callback:
+            try:
+                progress_callback(0, len(normalized_channels), "Failed to authorize Telegram client")
+            except Exception as e:
+                logger.error(f"Error in progress callback (auth failure): {e}")
         return {}
         
     news_data = {}
@@ -695,6 +723,11 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
     try:
         if not client.is_connected():
             logger.error("Telegram client failed to connect.")
+            if progress_callback:
+                try:
+                    progress_callback(0, total_channels, "Telegram client connection failed")
+                except Exception as e:
+                    logger.error(f"Error in progress callback (connection failure): {e}")
             return {}
 
         now_utc = datetime.now(timezone.utc)
@@ -710,21 +743,19 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
             since_date_utc = now_utc - timedelta(hours=24)
             logger.info(f"Fetching messages for the past day since: {since_date_utc.isoformat()}")
 
-        for channel_info in normalized_channels:
-            processed_channels += 1
-            
-            # Update progress if callback provided
-            if progress_callback:
-                channel_name = channel_info.get('name', 'Unknown Channel')
-                # Format the channel name to make it more readable
-                if len(channel_name) > 30:
-                    channel_name = channel_name[:27] + '...'
-                progress_callback(processed_channels, total_channels, channel_name)
-                
+        for channel_idx, channel_info in enumerate(normalized_channels):
             original_identifier = channel_info['url']
             channel_name = channel_info.get('name', original_identifier.split('/')[-1])
             
-            logger.info(f"[Progress: {processed_channels}/{total_channels} channels] Processing {channel_name} ({original_identifier})")
+            # Update progress for starting this channel
+            if progress_callback:
+                try:
+                    logger.info(f"Progress update: Starting to process channel {channel_idx+1}/{total_channels}: {channel_name}")
+                    progress_callback(channel_idx, total_channels, f"Starting to process: {channel_name}")
+                except Exception as e:
+                    logger.error(f"Error in progress callback (start channel): {e}")
+            
+            logger.info(f"[Progress: {channel_idx+1}/{total_channels} channels] Processing {channel_name} ({original_identifier})")
             
             # Handle different channel identifier formats
             channel_identifier = original_identifier
@@ -744,6 +775,15 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 channel_identifier = int(channel_id)  # Pass the numeric ID as int to get_channel_entity
             
             logger.info(f'Processing identifier: {original_identifier} (using identifier: {channel_identifier})')
+            
+            # Update progress while resolving entity
+            if progress_callback:
+                try:
+                    logger.info(f"Progress update: Resolving channel {channel_name}")
+                    progress_callback(channel_idx, total_channels, f"Resolving channel: {channel_name}")
+                except Exception as e:
+                    logger.error(f"Error in progress callback (resolving): {e}")
+                    
             entity = await get_channel_entity(client, channel_identifier)
             logger.debug(f'Entity for {channel_identifier}: {entity}')
             
@@ -760,6 +800,14 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 # Get the latest timestamp from the database for this channel
                 latest_timestamp = get_latest_timestamp_for_channel("telegram", channel_id)
                 
+                # Update progress while fetching messages
+                if progress_callback:
+                    try:
+                        logger.info(f"Progress update: Fetching messages from {channel_name}")
+                        progress_callback(channel_idx, total_channels, f"Fetching messages from: {channel_name}")
+                    except Exception as e:
+                        logger.error(f"Error in progress callback (fetching): {e}")
+                    
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
                 
                 if latest_timestamp:
@@ -782,15 +830,31 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 
                 message_ids = []
                 total_messages = len(messages)
-                current_message = 0
+                
+                # Update progress with message count
+                if progress_callback:
+                    try:
+                        msg = f"Processing {total_messages} messages from: {channel_name}"
+                        logger.info(f"Progress update: {msg}")
+                        progress_callback(channel_idx, total_channels, msg)
+                    except Exception as e:
+                        logger.error(f"Error in progress callback (message count): {e}")
                 
                 # Identify repetitive links across all fetched messages
                 repetitive_links = identify_repetitive_links(messages)
                 
                 # Extract summaries for each link in each message
-                for message in messages:
-                    current_message += 1
-                    logger.info(f"[Progress: {processed_channels}/{total_channels} channels, {current_message}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
+                for current_msg_idx, message in enumerate(messages):
+                    # Periodically update progress while processing messages
+                    if progress_callback and current_msg_idx % 5 == 0:  # Update every 5 messages
+                        try:
+                            msg = f"Processing message {current_msg_idx+1}/{total_messages} from: {channel_name}"
+                            logger.info(f"Progress update: {msg}")
+                            progress_callback(channel_idx, total_channels, msg)
+                        except Exception as e:
+                            logger.error(f"Error in progress callback (message processing): {e}")
+                        
+                    logger.info(f"[Progress: {channel_idx+1}/{total_channels} channels, {current_msg_idx+1}/{total_messages} messages] Processing message ID {message['message_id']} with {len(message['links'])} links")
                     
                     # Parse the message date
                     message_date = datetime.fromisoformat(message['date']) if message['date'] else None
@@ -812,7 +876,17 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                     message = filter_repetitive_links(message, repetitive_links)
                     logger.info(f"After filtering repetitive links: {len(message['links'])} links remain")
                     
-                    for link in message["links"]:
+                    # Process links
+                    for link_idx, link in enumerate(message["links"]):
+                        if progress_callback and len(message["links"]) > 3 and link_idx % 3 == 0:
+                            # Only update for channels with many links, every 3 links
+                            try:
+                                msg = f"Processing link {link_idx+1}/{len(message['links'])} in message {current_msg_idx+1} from: {channel_name}"
+                                logger.info(f"Progress update: {msg}")
+                                progress_callback(channel_idx, total_channels, msg)
+                            except Exception as e:
+                                logger.error(f"Error in progress callback (link processing): {e}")
+                            
                         logger.info(f"Processing link: {link}")
                         try:
                             # Use the async extract_summary function with await
@@ -872,8 +946,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                             logger.error(f"Error extracting summary for {link}: {e}")
                             logger.error(traceback.format_exc())
                             message["link_summaries"][link] = f"Error: {str(e)}"
-                        
-                        
+                    
                     # Prepare message data for saving
                     message_data = {
                         'source_url': message['source_url'],
@@ -896,20 +969,43 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                 logger.warning(f"Could not resolve entity for {channel_identifier}, returning empty list")
                 news_data[original_identifier] = []
 
-            # Update progress if callback provided
+            # Update progress after completing this channel
+            processed_channels += 1
             if progress_callback:
-                channel_name = channel_info.get('name', 'Unknown Channel')
-                # Format the channel name to make it more readable
-                if len(channel_name) > 30:
-                    channel_name = channel_name[:27] + '...'
-                progress_callback(processed_channels, total_channels, channel_name)
+                try:
+                    logger.info(f"Progress update: Completed {channel_name} ({processed_channels}/{total_channels})")
+                    progress_callback(processed_channels, total_channels, f"Completed: {channel_name}")
+                except Exception as e:
+                    logger.error(f"Error in progress callback (channel complete): {e}")
 
         logger.info(f"Completed fetching messages from all {len(channels)} channels")
+        
+        # Final progress update
+        if progress_callback:
+            try:
+                logger.info(f"Final progress update: All {total_channels} channels completed")
+                progress_callback(total_channels, total_channels, "All messages fetched successfully!")
+            except Exception as e:
+                logger.error(f"Error in final progress callback: {e}")
+            
         return news_data
 
     except Exception as e:
         logger.error(f"Error fetching Telegram news: {e}")
         logger.error(traceback.format_exc())
+        
+        # Update progress to indicate error
+        if progress_callback:
+            try:
+                logger.error(f"Progress update: Error fetching messages - {str(e)}")
+                progress_callback(
+                    processed_channels, 
+                    total_channels, 
+                    f"Error fetching messages: {str(e)}"
+                )
+            except Exception as callback_e:
+                logger.error(f"Error in error progress callback: {callback_e}")
+            
         return {}
     finally:
         logger.debug("Disconnecting Telegram client")
