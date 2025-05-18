@@ -1239,7 +1239,8 @@ def get_channel_progress():
 async def cluster_channels():
     """
     API endpoint to cluster channels into topics using Gemini Flash.
-    Fetches sample messages directly from Telegram to improve clustering quality.
+    Fetches sample messages directly from Telegram, detects language, 
+    and intelligently groups channels by topic regardless of language.
     
     Request Format (JSON):
     {
@@ -1260,6 +1261,7 @@ async def cluster_channels():
         "topics": [
             {
                 "topic": "Finance",
+                "language": "en", // Primary language or "mixed" if multiple languages
                 "channels": [
                     {
                         "id": 1234567890,
@@ -1357,35 +1359,39 @@ async def cluster_channels():
                     
                     # Combine message content as a sample
                     sample_content = "\n\n".join([msg['text'] for msg in sample_messages if msg['text']])
-                    # enhanced_channel['sample_content'] = sample_content[:1500]  # Limit to 1500 chars
                     enhanced_channel['sample_content'] = sample_content
                     logger.debug(f"Channel URL: {channel_url}")
                     logger.debug(f"Sample content: {enhanced_channel['sample_content']}")
                     
-                    # Simple language detection based on message content
-                    # This is very basic - could be improved with a proper language detection library
-                    cyrillic_chars = sum(1 for c in sample_content if ord('А') <= ord(c) <= ord('я'))
-                    if cyrillic_chars > len(sample_content) * 0.3:  # If more than 30% is Cyrillic
-                        enhanced_channel['language'] = "ru"
-                    else:
-                        enhanced_channel['language'] = "en"  # Default to English
+                    # Improved language detection based on character sets
+                    if sample_content:
+                        # Check for Cyrillic (Russian, Ukrainian, etc.)
+                        cyrillic_chars = sum(1 for c in sample_content if '\u0400' <= c <= '\u04FF')
+                        cyrillic_ratio = cyrillic_chars / len(sample_content) if len(sample_content) > 0 else 0
+                        
+                        # Check for CJK characters (Chinese, Japanese, Korean)
+                        cjk_chars = sum(1 for c in sample_content if '\u4E00' <= c <= '\u9FFF')
+                        cjk_ratio = cjk_chars / len(sample_content) if len(sample_content) > 0 else 0
+                        
+                        # Check for Arabic characters
+                        arabic_chars = sum(1 for c in sample_content if '\u0600' <= c <= '\u06FF')
+                        arabic_ratio = arabic_chars / len(sample_content) if len(sample_content) > 0 else 0
+                        
+                        if cyrillic_ratio > 0.3:
+                            enhanced_channel['language'] = "ru"  # Using "ru" as general Cyrillic identifier
+                        elif cjk_ratio > 0.3:
+                            enhanced_channel['language'] = "zh"  # Using "zh" as general CJK identifier
+                        elif arabic_ratio > 0.3:
+                            enhanced_channel['language'] = "ar"  # Using "ar" as general Arabic identifier
+                        else:
+                            enhanced_channel['language'] = "en"  # Default to English
+                        
+                        logger.debug(f"Language detection: {enhanced_channel['language']} (Cyrillic: {cyrillic_ratio:.2f}, CJK: {cjk_ratio:.2f}, Arabic: {arabic_ratio:.2f})")
             except Exception as e:
                 logger.warning(f"Failed to fetch sample messages for channel {channel_id}: {e}")
                 logger.warning(traceback.format_exc())
             
             enhanced_channels.append(enhanced_channel)
-        
-        # # Sort channels by last_message_date (newest first)
-        # # Fix sorting issue with None values by using a default value
-        # def safe_sort_key(channel):
-        #     date = channel.get('last_message_date')
-        #     # If date is None or doesn't exist, return a very old date as string
-        #     return date if date is not None else '0000-01-01T00:00:00'
-            
-        # enhanced_channels.sort(
-        #     key=safe_sort_key,
-        #     reverse=True
-        # )
         
         # Import Gemini API
         from google import genai
@@ -1418,6 +1424,7 @@ async def cluster_channels():
         channel_list = "\n\n".join(channels_info)
         
         # Use the template from instruction_templates.py
+        # The updated template will translate non-English content and cluster by topic
         prompt = INSTRUCTIONS["channel_clustering"].format(
             channel_info=channel_list
         )
@@ -1468,13 +1475,6 @@ async def cluster_channels():
                 for idx in channel_indices:
                     if 0 <= idx < len(enhanced_channels):
                         topic_channels.append(enhanced_channels[idx])
-                
-                # # Sort channels by last_message_date within each topic
-                # # Use the same safe sort key function
-                # topic_channels.sort(
-                #     key=safe_sort_key, 
-                #     reverse=True
-                # )
                 
                 topics_result.append({
                     "topic": topic_name,
