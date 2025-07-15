@@ -807,7 +807,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                         progress_callback(channel_idx, total_channels, f"Fetching messages from: {channel_name}")
                     except Exception as e:
                         logger.error(f"Error in progress callback (fetching): {e}")
-                    
+                
                 logger.info(f'Fetching messages from: {channel_identifier} ({original_identifier})')
                 
                 if latest_timestamp:
@@ -946,7 +946,7 @@ async def fetch_telegram_messages(channels, time_range="1d", enable_retries=Fals
                             logger.error(f"Error extracting summary for {link}: {e}")
                             logger.error(traceback.format_exc())
                             message["link_summaries"][link] = f"Error: {str(e)}"
-                    
+                        
                     # Prepare message data for saving
                     message_data = {
                         'source_url': message['source_url'],

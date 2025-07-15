@@ -75,8 +75,7 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 SOURCES_FILE = "sources.json"  # File to store news sources
 
 app = Flask(__name__)
-CORS(app)
-# CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # Global dictionary to store progress data for different requests
 channel_progress_data = {}
@@ -1196,14 +1195,14 @@ def get_channel_progress():
     """
     request_id = request.args.get('requestId', 'default')
     
-    # # Immediately log the connection request
-    # logger.info(f"Channel progress SSE connection started for request ID: {request_id}")
+    # Immediately log the connection request
+    logger.info(f"Channel progress SSE connection started for request ID: {request_id}")
     
-    # # Check if request_id exists in progress data
-    # if request_id in channel_progress_data:
-    #     logger.info(f"Found existing progress data for request_id: {request_id}: {channel_progress_data[request_id]}")
-    # else:
-    #     logger.warning(f"No progress data found for request_id: {request_id}")
+    # Check if request_id exists in progress data
+    if request_id in channel_progress_data:
+        logger.info(f"Found existing progress data for request_id: {request_id}: {channel_progress_data[request_id]}")
+    else:
+        logger.warning(f"No progress data found for request_id: {request_id}")
     
     def generate():
         prev_data = None
@@ -1211,7 +1210,7 @@ def get_channel_progress():
         max_errors = 5
         connection_id = datetime.now().strftime('%Y%m%d%H%M%S') + str(id(request))
         
-        # logger.info(f"SSE stream generator started for [{request_id}] with connection_id: {connection_id}")
+        logger.info(f"SSE stream generator started for [{request_id}] with connection_id: {connection_id}")
         
         # Immediately send a connection established event
         yield f"event: connected\ndata: {json.dumps({'connected': True, 'connection_id': connection_id})}\n\n"
@@ -1219,7 +1218,7 @@ def get_channel_progress():
         # Send initial data if available
         if request_id in channel_progress_data:
             initial_data = channel_progress_data[request_id]
-            # logger.info(f"SSE [{connection_id}] - Sending initial progress data for {request_id}: {initial_data}")
+            logger.info(f"SSE [{connection_id}] - Sending initial progress data for {request_id}: {initial_data}")
             yield f"data: {json.dumps(initial_data)}\n\n"
             prev_data = initial_data.copy()
         else:
@@ -1229,7 +1228,7 @@ def get_channel_progress():
                 "totalChannels": 0,
                 "currentChannel": "Initializing..."
             }
-            # logger.info(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data, sending default initial data")
+            logger.info(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data, sending default initial data")
             yield f"data: {json.dumps(initial_data)}\n\n"
             prev_data = initial_data.copy()
         
@@ -1246,7 +1245,7 @@ def get_channel_progress():
                         # Only send updates when data changes
                         if current_data != prev_data:
                             update_count += 1
-                            # logger.info(f"SSE [{connection_id}] - Sending update #{update_count} for {request_id}: {current_data}")
+                            logger.info(f"SSE [{connection_id}] - Sending update #{update_count} for {request_id}: {current_data}")
                             yield f"data: {json.dumps(current_data)}\n\n"
                             prev_data = current_data.copy()
                             error_count = 0  # Reset error count on successful update
@@ -1258,7 +1257,7 @@ def get_channel_progress():
                             ("complete" in str(current_data.get('currentChannel', '')).lower() or
                              "finalizing" in str(current_data.get('currentChannel', '')).lower())
                         ):
-                            # logger.info(f"SSE [{connection_id}] - Progress tracking complete for {request_id}")
+                            logger.info(f"SSE [{connection_id}] - Progress tracking complete for {request_id}")
                             # Send one final update to ensure client gets it
                             yield f"data: {json.dumps(current_data)}\n\n"
                             yield f"event: complete\ndata: {json.dumps({'complete': True})}\n\n"
@@ -1266,13 +1265,11 @@ def get_channel_progress():
                     else:
                         error_count += 1
                         if error_count >= max_errors:
-                            # logger.warning(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data after {max_errors} attempts")
+                            logger.warning(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data after {max_errors} attempts")
                             yield f"event: error\ndata: {json.dumps({'error': 'Request ID not found'})}\n\n"
                             break
                 except Exception as e:
-                    # logger.error(f"SSE [{connection_id}] - Error generating SSE for {request_id}: {str(e)}")
-
-
+                    logger.error(f"SSE [{connection_id}] - Error generating SSE for {request_id}: {str(e)}")
                     error_count += 1
                     if error_count >= max_errors:
                         yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
@@ -1280,22 +1277,20 @@ def get_channel_progress():
                 
                 # Send occasional keepalive comments to prevent connection timeouts
                 if (time.time() - start_time) % 15 < 0.5:  # Every ~15 seconds
-                    # logger.debug(f"SSE [{connection_id}] - Sending keepalive for {request_id}")
+                    logger.debug(f"SSE [{connection_id}] - Sending keepalive for {request_id}")
                     yield f": keepalive {int(time.time())}\n\n"
                 
                 # Wait before checking again
                 time.sleep(0.5)
         except GeneratorExit:
-            # logger.info(f"SSE [{connection_id}] - Connection closed for {request_id}")
-            pass
+            logger.info(f"SSE [{connection_id}] - Connection closed for {request_id}")
         finally:
-            # logger.info(f"SSE [{connection_id}] - Progress tracking ended for {request_id} after {update_count} updates")
-            pass
+            logger.info(f"SSE [{connection_id}] - Progress tracking ended for {request_id} after {update_count} updates")
     
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'  # Disable buffering for Nginx
-    # logger.info(f"Progress tracking response created for {request_id}")
+    logger.info(f"Progress tracking response created for {request_id}")
     return response
 
 @app.route('/cluster-channels', methods=['POST'])
@@ -1388,12 +1383,12 @@ async def cluster_channels():
         total_channels = len(channels)
         
         # Initialize clustering progress tracking with explicit request_id
-        # logger.info(f"Initializing progress tracking for request_id: {request_id}")
-        channel_progress_data[request_id] = {
-            "processedChannels": 0,
-            "totalChannels": total_channels,
-            "currentChannel": "Starting analysis..."
-        }
+        logger.info(f"Initializing progress tracking for request_id: {request_id}")
+            channel_progress_data[request_id] = {
+                "processedChannels": 0,
+                "totalChannels": total_channels,
+                "currentChannel": "Starting analysis..."
+            }
         logger.info(f"Progress data initialized for request_id: {request_id}: {channel_progress_data[request_id]}")
         
         # Print a list of all request IDs currently in the progress data
@@ -1404,11 +1399,11 @@ async def cluster_channels():
             channel_name = channel.get('name', f"Channel {channel_id}")
             
             # Update progress with current channel name and count before processing
-            channel_progress_data[request_id] = {
-                "processedChannels": i,
-                "totalChannels": total_channels,
+                channel_progress_data[request_id] = {
+                    "processedChannels": i,
+                    "totalChannels": total_channels,
                 "currentChannel": f"Analyzing {channel_name}"
-            }
+                }
             # Log to confirm progress update is being set
             logger.info(f"Progress update [{request_id}]: {i+1}/{total_channels} - Analyzing {channel_name}")
             logger.debug(f"Progress data updated: {channel_progress_data[request_id]}")
@@ -1449,30 +1444,30 @@ async def cluster_channels():
                     logger.debug(f"Channel URL: {channel_url}")
                     logger.debug(f"Sample content: {enhanced_channel['sample_content']}")
                     
-                    # # Improved language detection based on character sets
-                    # if sample_content:
-                    #     # Check for Cyrillic (Russian, Ukrainian, etc.)
-                    #     cyrillic_chars = sum(1 for c in sample_content if '\u0400' <= c <= '\u04FF')
-                    #     cyrillic_ratio = cyrillic_chars / len(sample_content) if len(sample_content) > 0 else 0
+                    # Improved language detection based on character sets
+                    if sample_content:
+                        # Check for Cyrillic (Russian, Ukrainian, etc.)
+                        cyrillic_chars = sum(1 for c in sample_content if '\u0400' <= c <= '\u04FF')
+                        cyrillic_ratio = cyrillic_chars / len(sample_content) if len(sample_content) > 0 else 0
                         
-                    #     # Check for CJK characters (Chinese, Japanese, Korean)
-                    #     cjk_chars = sum(1 for c in sample_content if '\u4E00' <= c <= '\u9FFF')
-                    #     cjk_ratio = cjk_chars / len(sample_content) if len(sample_content) > 0 else 0
+                        # Check for CJK characters (Chinese, Japanese, Korean)
+                        cjk_chars = sum(1 for c in sample_content if '\u4E00' <= c <= '\u9FFF')
+                        cjk_ratio = cjk_chars / len(sample_content) if len(sample_content) > 0 else 0
                         
-                    #     # Check for Arabic characters
-                    #     arabic_chars = sum(1 for c in sample_content if '\u0600' <= c <= '\u06FF')
-                    #     arabic_ratio = arabic_chars / len(sample_content) if len(sample_content) > 0 else 0
+                        # Check for Arabic characters
+                        arabic_chars = sum(1 for c in sample_content if '\u0600' <= c <= '\u06FF')
+                        arabic_ratio = arabic_chars / len(sample_content) if len(sample_content) > 0 else 0
                         
-                    #     if cyrillic_ratio > 0.3:
-                    #         enhanced_channel['language'] = "ru"  # Using "ru" as general Cyrillic identifier
-                    #     elif cjk_ratio > 0.3:
-                    #         enhanced_channel['language'] = "zh"  # Using "zh" as general CJK identifier
-                    #     elif arabic_ratio > 0.3:
-                    #         enhanced_channel['language'] = "ar"  # Using "ar" as general Arabic identifier
-                    #     else:
-                    #         enhanced_channel['language'] = "en"  # Default to English
+                        if cyrillic_ratio > 0.3:
+                            enhanced_channel['language'] = "ru"  # Using "ru" as general Cyrillic identifier
+                        elif cjk_ratio > 0.3:
+                            enhanced_channel['language'] = "zh"  # Using "zh" as general CJK identifier
+                        elif arabic_ratio > 0.3:
+                            enhanced_channel['language'] = "ar"  # Using "ar" as general Arabic identifier
+                        else:
+                            enhanced_channel['language'] = "en"  # Default to English
                         
-                    #     logger.debug(f"Language detection: {enhanced_channel['language']} (Cyrillic: {cyrillic_ratio:.2f}, CJK: {cjk_ratio:.2f}, Arabic: {arabic_ratio:.2f})")
+                        logger.debug(f"Language detection: {enhanced_channel['language']} (Cyrillic: {cyrillic_ratio:.2f}, CJK: {cjk_ratio:.2f}, Arabic: {arabic_ratio:.2f})")
             except Exception as e:
                 logger.warning(f"Failed to fetch sample messages for channel {channel_id}: {e}")
                 logger.warning(traceback.format_exc())
@@ -1907,7 +1902,6 @@ async def save_telegram_channels():
 def update_channel_progress(request_id, processed_channels, total_channels, current_channel):
     """
     Update the progress data for a specific request.
-    Only send meaningful updates to avoid overwhelming the UI with status messages.
     
     Args:
         request_id: The unique identifier for the request
@@ -1926,29 +1920,6 @@ def update_channel_progress(request_id, processed_channels, total_channels, curr
             "totalChannels": 0,
             "currentChannel": "Initializing..."
         }
-    
-    # Get current state to check if this update should be processed
-    current_state = channel_progress_data[request_id]
-    
-    # Only update if one of these conditions is met:
-    # 1. This is a "completed channel" update (processed count changed)
-    # 2. This is a significant phase change (clustering, finalizing, etc.)
-    # 3. This is an initialization, first, or final update
-    significant_update = (
-        # Count change indicates channel completion
-        processed_channels != current_state.get("processedChannels") or
-        # Total count initialized or changed
-        total_channels != current_state.get("totalChannels") or
-        # Phase change (clustering, finalizing, etc.)
-        (current_channel and any(keyword in current_channel.lower() for keyword in 
-                              ["clustering", "finalizing", "complete", "generating", "ai", "error"])) or
-        # First or last item
-        processed_channels == 0 or processed_channels == total_channels
-    )
-    
-    if not significant_update and 'Fetching messages from:' not in (current_channel or ''):
-        logger.debug(f"Skipping non-significant update for {request_id}: {processed_channels}/{total_channels} - {current_channel}")
-        return
         
     # Format the channel name to be more readable if it's too long
     display_channel = current_channel or "No channel specified"

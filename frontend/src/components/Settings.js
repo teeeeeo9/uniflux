@@ -432,10 +432,13 @@ const Settings = ({ onFetchSummaries }) => {
     setUploading(true);
     setFileError('');
     
-    // Generate a unique request ID for tracking progress
-    const requestId = generateRequestId();
-    console.log(`[DEBUG] Generated requestId for file upload: ${requestId}`);
-    setClusterRequestId(requestId);
+    // Generate a unique request ID for tracking progress - only if not already set
+    // This prevents multiple SSE connections for the same operation
+    if (!clusterRequestId) {
+      const requestId = generateRequestId();
+      console.log(`Generated requestId for file upload: ${requestId}`);
+      setClusterRequestId(requestId);
+    }
     
     // Reset progress tracking
     setProgress({
@@ -450,13 +453,13 @@ const Settings = ({ onFetchSummaries }) => {
       const formData = new FormData();
       formData.append('file', telegramFile);
       
-      console.log(`[DEBUG] Uploading file with requestId: ${requestId}`);
+      console.log(`Uploading file with requestId: ${clusterRequestId}`);
       
       // Upload the file to backend
       const response = await fetch(`${API_URL}/upload-telegram-export`, {
         method: 'POST',
         headers: {
-          'X-Request-ID': requestId
+          'X-Request-ID': clusterRequestId
         },
         body: formData
       });
@@ -470,7 +473,7 @@ const Settings = ({ onFetchSummaries }) => {
         } else {
           // If it's not JSON, get the text instead
           const errorText = await response.text();
-          console.error('[DEBUG] Server returned non-JSON response:', errorText.substring(0, 200) + '...');
+          console.error('Server returned non-JSON response:', errorText.substring(0, 200) + '...');
           throw new Error(`Server error: ${response.status}. The server did not return a valid JSON response.`);
         }
       }
@@ -478,36 +481,36 @@ const Settings = ({ onFetchSummaries }) => {
       // Verify we have JSON before parsing
       if (!contentType || !contentType.includes('application/json')) {
         const responseText = await response.text();
-        console.error('[DEBUG] Server returned non-JSON response:', responseText.substring(0, 200) + '...');
+        console.error('Server returned non-JSON response:', responseText.substring(0, 200) + '...');
         throw new Error('The server returned an invalid response format.');
       }
       
       const data = await response.json();
-      console.log(`[DEBUG] Upload response:`, data);
+      console.log(`Upload response:`, data);
       
       if (!data.success) {
         throw new Error(data.error || 'Failed to process the file');
       }
       
       setChannels(data.channels);
-      console.log(`[DEBUG] Set ${data.channels.length} channels`);
+      console.log(`Set ${data.channels.length} channels`);
       
       // Now we'll cluster the channels using our fixed function
       setClustering(true);
       
       try {
-        console.log(`[DEBUG] Calling clusterChannels with requestId: ${requestId}`);
-        const clusterData = await clusterChannels(data.channels, requestId);
-        console.log(`[DEBUG] Cluster operation completed:`, clusterData);
+        console.log(`Calling clusterChannels with requestId: ${clusterRequestId}`);
+        const clusterData = await clusterChannels(data.channels, clusterRequestId);
+        console.log(`Cluster operation completed:`, clusterData);
       } catch (clusterErr) {
-        console.error(`[DEBUG] Error during clustering:`, clusterErr);
+        console.error(`Error during clustering:`, clusterErr);
         setFileError(`Error analyzing channels: ${clusterErr.message}`);
       } finally {
         setClustering(false);
       }
       
     } catch (err) {
-      console.error('[DEBUG] Error uploading Telegram export:', err);
+      console.error('Error uploading Telegram export:', err);
       setFileError(err.message || 'Failed to upload file');
     } finally {
       setUploading(false);
@@ -524,13 +527,15 @@ const Settings = ({ onFetchSummaries }) => {
     setClustering(true);
     
     try {
-      // Generate a unique requestId if one wasn't provided
-      const newRequestId = requestId || generateRequestId();
-      console.log(`[DEBUG] Using requestId for clustering: ${newRequestId}`);
+      // Use the provided requestId or generate a new one - but prioritize reusing existing
+      const newRequestId = requestId || clusterRequestId || generateRequestId();
+      console.log(`Using requestId for clustering: ${newRequestId}`);
       
-      // Save the requestId for progress tracking
-      setClusterRequestId(newRequestId);
-      console.log(`[DEBUG] Set clusterRequestId state to: ${newRequestId}`);
+      // Save the requestId for progress tracking - only if it changed
+      if (clusterRequestId !== newRequestId) {
+        setClusterRequestId(newRequestId);
+        console.log(`Set clusterRequestId state to: ${newRequestId}`);
+      }
       
       // Update progress for clustering start
       setProgress(prev => ({
@@ -541,7 +546,7 @@ const Settings = ({ onFetchSummaries }) => {
       }));
       
       // Send channels to clustering endpoint
-      console.log(`[DEBUG] Sending ${channelsData.length} channels to cluster-channels endpoint with requestId: ${newRequestId}`);
+      console.log(`Sending ${channelsData.length} channels to cluster-channels endpoint with requestId: ${newRequestId}`);
       const response = await fetch(`${API_URL}/cluster-channels`, {
         method: 'POST',
         headers: {
@@ -558,32 +563,32 @@ const Settings = ({ onFetchSummaries }) => {
       });
       
       // Check response status
-      console.log(`[DEBUG] cluster-channels response status: ${response.status}`);
+      console.log(`cluster-channels response status: ${response.status}`);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[DEBUG] Error response from cluster-channels: ${errorText}`);
+          const errorText = await response.text();
+        console.error(`Error response from cluster-channels: ${errorText}`);
         throw new Error(`Error clustering channels: ${response.status} - ${errorText}`);
       }
       
       // Parse response data
       const data = await response.json();
-      console.log(`[DEBUG] Received response data:`, data);
+      console.log(`Received response data:`, data);
       
       // Check response structure
       if (!data.success) {
-        console.error('[DEBUG] Response indicates failure:', data);
+        console.error('Response indicates failure:', data);
         throw new Error(data.error || "Server did not indicate success");
       }
       
       // Set channel topics from response data
       setChannelTopics(data.topics || []);
-      console.log(`[DEBUG] Set ${data.topics ? data.topics.length : 0} channel topics from response`);
+      console.log(`Set ${data.topics ? data.topics.length : 0} channel topics from response`);
       
       // IMPORTANT: Remove the recursive call that was causing issues
       // await clusterChannels(data.channels, newRequestId);
       
-      console.log(`[DEBUG] Clustering operation completed successfully with requestId: ${newRequestId}`);
+      console.log(`Clustering operation completed successfully with requestId: ${newRequestId}`);
       
       // We're done clustering
       setClustering(false);
@@ -600,7 +605,7 @@ const Settings = ({ onFetchSummaries }) => {
       return data; // Return the data for further processing if needed
       
     } catch (err) {
-      console.error(`[DEBUG] Error during channel clustering:`, err);
+      console.error(`Error during channel clustering:`, err);
       setError(err.message || "Failed to cluster channels");
       setClustering(false);
       throw err; // Re-throw to allow handling by caller
@@ -809,46 +814,32 @@ const Settings = ({ onFetchSummaries }) => {
           </div>
           
           {/* Progress indicators for clustering and channel processing */}
-          {(clustering || uploading || progress.processedChannels > 0) && (
+          {(uploading || progress.processedChannels > 0) && progress.clusteringComplete && progress.totalChannels > 0 && (
             <div className="progress-section">
-              {clustering && (
-                <div className="progress-item">
-                  <h4>Analyzing Channels...</h4>
-                  <div className="progress-bar">
-                    <div className="progress-bar-inner indeterminate"></div>
+              <div className="progress-item">
+                <h4>
+                  Processing Channels: {progress.processedChannels} of {progress.totalChannels}
+                </h4>
+                {progress.currentChannel && (
+                  <div className="current-channel">
+                    <span className="channel-indicator">Current Channel:</span> 
+                    <span className="channel-name">{progress.currentChannel}</span>
                   </div>
+                )}
+                <div className="progress-bar">
+                  <div 
+                    className="progress-bar-inner" 
+                    style={{width: `${(progress.processedChannels / progress.totalChannels) * 100}%`}}
+                  ></div>
                 </div>
-              )}
-              
-              {progress.clusteringComplete && progress.totalChannels > 0 && (
-                <div className="progress-item">
-                  <h4>
-                    Processing Channels: {progress.processedChannels} of {progress.totalChannels}
-                  </h4>
-                  {progress.currentChannel && (
-                    <div className="current-channel">
-                      <span className="channel-indicator">Current Channel:</span> 
-                      <span className="channel-name">{progress.currentChannel}</span>
-                    </div>
-                  )}
-                  <div className="progress-bar">
-                    <div 
-                      className="progress-bar-inner" 
-                      style={{width: `${(progress.processedChannels / progress.totalChannels) * 100}%`}}
-                    ></div>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           )}
           
           {clustering && clusterRequestId && (
             <div className="progress-container">
               <h3>Channel Analysis Progress</h3>
-              <div className="debug-info" style={{marginBottom: '10px', fontSize: '12px', color: '#666'}}>
-                Request ID: {clusterRequestId}
-              </div>
-              <ChannelProgress requestId={clusterRequestId} key={clusterRequestId} />
+              <ChannelProgress requestId={clusterRequestId} />
             </div>
           )}
           
