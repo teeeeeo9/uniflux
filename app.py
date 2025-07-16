@@ -75,11 +75,32 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 SOURCES_FILE = "sources.json"  # File to store news sources
 
 app = Flask(__name__)
-CORS(app)
-# CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+# CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # Global dictionary to store progress data for different requests
 channel_progress_data = {}
+
+
+def create_cors_response(data, status_code=200):
+    """
+    Create a JSON response with proper CORS headers.
+    
+    Args:
+        data: The data to return in the response
+        status_code: HTTP status code
+    
+    Returns:
+        Flask response object with CORS headers
+    """
+    response = jsonify(data)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,ngrok-skip-browser-warning,skip_zrok_interstitial')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response, status_code
+
+
 
 def ensure_event_loop():
     """
@@ -386,16 +407,16 @@ async def get_summaries():
         
         if not summaries:
             logger.warning(f"PROCESS [{request_id}] - No summaries generated")
-            return jsonify({"topics": []}), 200
+            return create_cors_response({"topics": []})
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated {len(summaries)} topics")
         
         # Create and log the response
-        response = {"topics": summaries}
-        logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
+        response_data = {"topics": summaries}
+        logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response_data))} bytes")
         
-        return jsonify(response), 200
+        return create_cors_response(response_data)
     
     except Exception as e:
         # Log detailed error information
@@ -408,7 +429,7 @@ async def get_summaries():
         logger.error(f"ERROR [{request_id}] - Failed to process summaries request: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({"error": str(e)}), 500
+        return create_cors_response({"error": str(e)}, 500)
 
 @app.route('/insights', methods=['POST'])
 async def get_insights():
