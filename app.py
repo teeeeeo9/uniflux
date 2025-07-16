@@ -509,11 +509,11 @@ async def get_insights():
         # Get JSON data from request body
         data = request.get_json()
         if not data or 'topics' not in data:
-            return jsonify({"error": "Invalid request body. 'topics' field is required."}), 400
+            return create_cors_response({"error": "Invalid request body. 'topics' field is required."}, 400)
             
         summaries = data['topics']
         if not summaries or not isinstance(summaries, list):
-            return jsonify({"error": "Invalid 'topics' field. Expected a non-empty array."}), 400
+            return create_cors_response({"error": "Invalid 'topics' field. Expected a non-empty array."}, 400)
         
         topic_names = [topic.get('topic', 'Unknown') for topic in summaries]
         logger.info(f"REQUEST [{request_id}] - Processing insights for topic(s): {', '.join(topic_names)}")
@@ -548,7 +548,7 @@ async def get_insights():
         response = {"topics": topics_with_insights}
         logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
         
-        return jsonify(response), 200
+        return create_cors_response(response, 200)
     
     except Exception as e:
         # Log detailed error information
@@ -561,7 +561,7 @@ async def get_insights():
         logger.error(f"ERROR [{request_id}] - Failed to process insights request: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({"error": str(e)}), 500
+        return create_cors_response({"error": str(e)}, 500)
 
 @app.route('/sources', methods=['GET'])
 async def get_sources():
@@ -622,13 +622,13 @@ async def get_sources():
                     'source_type': source['source_type']
                 })
             
-            return jsonify({"sources": categorized_sources}), 200
+            return create_cors_response({"sources": categorized_sources}, 200)
             
     except Exception as e:
         error_message = f"Error retrieving sources: {str(e)}"
         logger.error(error_message)
         logger.error(traceback.format_exc())
-        return jsonify({"error": error_message}), 500
+        return create_cors_response({"error": error_message}, 500)
 
 @app.route('/message/<int:message_id>', methods=['GET'])
 async def get_message(message_id):
@@ -661,20 +661,20 @@ async def get_message(message_id):
             message = cursor.fetchone()
             
             if not message:
-                return jsonify({"error": f"Message with ID {message_id} not found"}), 404
+                return create_cors_response({"error": f"Message with ID {message_id} not found"}, 404)
             
-            return jsonify({
+            return create_cors_response({
                 "id": message['id'],
                 "content": message['data'],
                 "date": message['date'],
                 "source": message['source_name'] or message['source_url']
-            }), 200
+            }, 200)
             
     except Exception as e:
         error_message = f"Error retrieving message: {str(e)}"
         logger.error(error_message)
         logger.error(traceback.format_exc())
-        return jsonify({"error": error_message}), 500
+        return create_cors_response({"error": error_message}, 500)
 
 @app.route('/insights', methods=['GET'])
 async def get_insights_legacy():
@@ -769,7 +769,7 @@ async def get_insights_legacy():
         
         if not topics_with_insights:
             logger.warning(f"PROCESS [{request_id}] - No topics generated")
-            return jsonify({"topics": []}), 200
+            return create_cors_response({"topics": []}, 200)
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated {len(topics_with_insights)} topics with insights")
@@ -778,7 +778,7 @@ async def get_insights_legacy():
         response = {"topics": topics_with_insights}
         logger.info(f"RESPONSE [{request_id}] - Response size: {len(str(response))} bytes")
         
-        return jsonify(response), 200
+        return create_cors_response(response, 200)
     
     except Exception as e:
         # Log detailed error information
@@ -791,7 +791,7 @@ async def get_insights_legacy():
         logger.error(f"ERROR [{request_id}] - Failed to process insights request: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({"error": str(e)}), 500
+        return create_cors_response({"error": str(e)}, 500)
 
 @app.route('/feedback', methods=['POST'])
 async def submit_feedback():
@@ -827,27 +827,27 @@ async def submit_feedback():
         
         # Validate required fields
         if not data or not all(key in data for key in ['email', 'message', 'type']):
-            return jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Missing required fields: email, message, type"
-            }), 400
+            }, 400)
             
         # Validate email format
         email = data['email']
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, email):
-            return jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Invalid email format"
-            }), 400
+            }, 400)
             
         # Validate feedback type
         feedback_type = data['type']
         if feedback_type not in ['feedback', 'question', 'bug']:
-            return jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Invalid feedback type. Must be one of: feedback, question, bug"
-            }), 400
+            }, 400)
             
         # Store feedback in database
         with get_db() as conn:
@@ -869,10 +869,10 @@ async def submit_feedback():
             
         logger.info(f"RESPONSE [{request_id}] - Feedback submitted successfully from {email}")
         
-        return jsonify({
+        return create_cors_response({
             "success": True,
             "message": "Feedback submitted successfully"
-        }), 201
+        }, 201)
     
     except Exception as e:
         # Log detailed error information
@@ -885,10 +885,10 @@ async def submit_feedback():
         logger.error(f"ERROR [{request_id}] - Failed to submit feedback: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({
+        return create_cors_response({
             "success": False,
             "error": f"Failed to submit feedback: {str(e)}"
-        }), 500
+        }, 500)
 
 @app.route('/subscribe', methods=['POST'])
 async def subscribe():
@@ -923,19 +923,19 @@ async def subscribe():
         
         # Validate required fields
         if not data or 'email' not in data:
-            return jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Missing required field: email"
-            }), 400
+            }, 400)
             
         # Validate email format
         email = data['email']
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, email):
-            return jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Invalid email format"
-            }), 400
+            }, 400)
             
         # Get source (optional)
         source = data.get('source', 'main')
@@ -971,10 +971,10 @@ async def subscribe():
         message = "Subscription successful" if is_new else "Subscription updated"
         logger.info(f"RESPONSE [{request_id}] - {message} for {email}")
         
-        return jsonify({
+        return create_cors_response({
             "success": True,
             "message": message
-        }), 201
+        }, 201)
     
     except Exception as e:
         # Log detailed error information
@@ -987,10 +987,10 @@ async def subscribe():
         logger.error(f"ERROR [{request_id}] - Failed to process subscription: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        return jsonify({
+        return create_cors_response({
             "success": False,
             "error": f"Failed to process subscription: {str(e)}"
-        }), 500
+        }, 500)
 
 @app.route('/subscribers', methods=['GET'])
 async def get_subscribers():
@@ -1022,10 +1022,10 @@ async def get_subscribers():
     admin_token = request.args.get('token')
     # In production, use a secure token from environment variables
     if admin_token != os.getenv('ADMIN_TOKEN', 'admin-secret-token'):
-        return jsonify({
+        return create_cors_response({
             "success": False,
             "error": "Unauthorized access"
-        }), 401
+        }, 401)
     
     try:
         # Get source filter (optional)
@@ -1054,16 +1054,16 @@ async def get_subscribers():
                 for row in cursor.fetchall()
             ]
             
-        return jsonify({
+        return create_cors_response({
             "subscribers": subscribers,
             "count": len(subscribers)
-        }), 200
+        }, 200)
     
     except Exception as e:
-        return jsonify({
+        return create_cors_response({
             "success": False,
             "error": f"Failed to retrieve subscribers: {str(e)}"
-        }), 500
+        }, 500)
 
 @app.route('/upload-telegram-export', methods=['POST'])
 async def upload_telegram_export():
@@ -1101,24 +1101,20 @@ async def upload_telegram_export():
         # Check if file exists in request
         if 'file' not in request.files:
             logger.warning(f"REQUEST [{request_id}] - No file part in the request")
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "No file uploaded"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
             
         file = request.files['file']
         
         # Check if file has a name
         if file.filename == '':
             logger.warning(f"REQUEST [{request_id}] - Empty filename")
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "No file selected"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
         
         # Log the file info for debugging
         logger.debug(f"File received: {file.filename}, Content-Type: {file.content_type}")
@@ -1130,20 +1126,16 @@ async def upload_telegram_export():
             export_data = json.loads(file_content.decode('utf-8'))
         except json.JSONDecodeError as e:
             logger.error(f"REQUEST [{request_id}] - Invalid JSON file: {str(e)}")
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": f"Invalid JSON file format: {str(e)}"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
         except Exception as e:
             logger.error(f"REQUEST [{request_id}] - Error reading file: {str(e)}")
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": f"Error reading file: {str(e)}"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
             
         # Extract channel information from the export
         channels = []
@@ -1170,21 +1162,17 @@ async def upload_telegram_export():
 
         if not channels:
             logger.warning(f"REQUEST [{request_id}] - No channels found in the export")
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "No channels found in the export file. Please ensure your export contains channels, not regular chats."
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
             
         logger.info(f"RESPONSE [{request_id}] - Found {len(channels)} channels in Telegram export")
         
-        response = jsonify({
+        return create_cors_response({
             "success": True,
             "channels": channels
-        })
-        response.headers['Content-Type'] = 'application/json'
-        return response, 200
+        }, 200)
         
     except Exception as e:
         # Log detailed error information
@@ -1197,12 +1185,10 @@ async def upload_telegram_export():
         logger.error(f"ERROR [{request_id}] - Failed to process Telegram export: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
-        response = jsonify({
+        return create_cors_response({
             "success": False,
             "error": str(e)
-        })
-        response.headers['Content-Type'] = 'application/json'
-        return response, 500
+        }, 500)
 
 @app.route('/channel-progress', methods=['GET'])
 def get_channel_progress():
@@ -1387,12 +1373,10 @@ async def cluster_channels():
     try:
         # Validate request body
         if not body_data or 'channels' not in body_data or not body_data['channels']:
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "No channels provided"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
             
         channels = body_data['channels']
         simplified_fetching = body_data.get('simplified_fetching', False)
@@ -1533,12 +1517,10 @@ async def cluster_channels():
         # Configure Gemini API
         gemini_api_key = os.getenv('GEMINI_API_KEY')
         if not gemini_api_key:
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Gemini API key not configured"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 500
+            }, 500)
             
         client = genai.Client(api_key=gemini_api_key)
         model_name = os.getenv('GEMINI_MODEL_METATOPICS', 'gemini-1.5-flash')
@@ -1659,12 +1641,10 @@ async def cluster_channels():
 
             logger.debug(f"topics_result: {topics_result}")
             
-            api_response = jsonify({
+            return create_cors_response({
                 "success": True,
                 "topics": topics_result
-            })
-            api_response.headers['Content-Type'] = 'application/json'
-            return api_response, 200
+            }, 200)
             
         except json.JSONDecodeError as e:
             logger.error(f"ERROR [{request_id}] - Failed to parse Gemini response as JSON: {e}")
@@ -1680,12 +1660,10 @@ async def cluster_channels():
                 }
                 logger.info(f"Progress update [{request_id}]: Error - Failed to parse AI response")
                 
-            api_response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Failed to parse AI response"
-            })
-            api_response.headers['Content-Type'] = 'application/json'
-            return api_response, 500
+            }, 500)
             
     except Exception as e:
         # Log detailed error information
@@ -1708,12 +1686,10 @@ async def cluster_channels():
             }
             logger.info(f"Progress update [{request_id}]: Error - {str(e)}")
         
-        api_response = jsonify({
+        return create_cors_response({
             "success": False,
             "error": str(e)
-        })
-        api_response.headers['Content-Type'] = 'application/json'
-        return api_response, 500
+        }, 500)
 
 def convert_telegram_channel_to_url(channel_id):
     """
@@ -1770,24 +1746,20 @@ async def save_telegram_channels():
         data = request.get_json()
         
         if not data or 'channels' not in data:
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "No channels provided"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
         
         channels = data['channels']
         user_id = data.get('userId')
         period = data.get('period', '1d')
         
         if not channels:
-            response = jsonify({
+            return create_cors_response({
                 "success": False,
                 "error": "Empty channels list"
-            })
-            response.headers['Content-Type'] = 'application/json'
-            return response, 400
+            }, 400)
         
         logger.info(f"REQUEST [{request_id}] - Saving {len(channels)} Telegram channels")
         
@@ -1893,14 +1865,12 @@ async def save_telegram_channels():
         # Schedule cleanup after 5 minutes
         threading.Timer(300, cleanup_progress).start()
         
-        response = jsonify({
+        return create_cors_response({
             "success": True,
             "message": "Channels saved and messages fetched successfully",
             "savedChannels": saved_channels,
             "newMessagesCount": new_messages_count
-        })
-        response.headers['Content-Type'] = 'application/json'
-        return response, 200
+        }, 200)
         
     except Exception as e:
         # Log detailed error information
@@ -1918,12 +1888,10 @@ async def save_telegram_channels():
             channel_progress_data[request_id]['error'] = str(e)
             channel_progress_data[request_id]['currentChannel'] = f"Error: {str(e)}"
         
-        response = jsonify({
+        return create_cors_response({
             "success": False,
             "error": str(e)
-        })
-        response.headers['Content-Type'] = 'application/json'
-        return response, 500
+        }, 500)
 
 def update_channel_progress(request_id, processed_channels, total_channels, current_channel):
     """
