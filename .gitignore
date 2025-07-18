@@ -9,3 +9,5 @@ test*
 *.session
 *.pyc
 sources*.json
+TON_PAYMENT_README.md
+telegram_session.session-journal

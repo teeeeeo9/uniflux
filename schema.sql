@@ -62,7 +62,43 @@ CREATE TABLE IF NOT EXISTS subscribers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User subscriptions table for TON payment-based access
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL UNIQUE, -- Telegram user ID from WebApp
+    telegram_username TEXT, -- Optional telegram username
+    subscription_tier TEXT NOT NULL DEFAULT 'basic', -- 'basic', 'premium', etc.
+    payment_amount REAL NOT NULL, -- Amount paid in TON
+    payment_tx_hash TEXT, -- TON transaction hash
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expiry_date TIMESTAMP NOT NULL, -- When subscription expires
+    is_active INTEGER DEFAULT 1, -- 1 = active, 0 = inactive
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Payment transactions table for tracking all payments
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL,
+    payment_id TEXT NOT NULL UNIQUE, -- Unique payment identifier
+    amount REAL NOT NULL, -- Amount in TON
+    ton_address TEXT NOT NULL, -- TON wallet address that made payment
+    tx_hash TEXT, -- Transaction hash on TON blockchain
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'confirmed', 'failed', 'expired'
+    network TEXT NOT NULL DEFAULT 'testnet', -- 'mainnet' or 'testnet'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    confirmed_at TIMESTAMP, -- When payment was confirmed
+    expires_at TIMESTAMP NOT NULL -- When payment expires if not confirmed
+);
+
 -- Create indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_link_summaries_url ON link_summaries(url);
 CREATE INDEX IF NOT EXISTS idx_messages_source_url ON messages(source_url);
-CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(date); 
+CREATE INDEX IF NOT EXISTS idx_messages_date ON messages(date);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_telegram_user_id ON user_subscriptions(telegram_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_expiry_date ON user_subscriptions(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_telegram_user_id ON payment_transactions(telegram_user_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_payment_id ON payment_transactions(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_tx_hash ON payment_transactions(tx_hash); 

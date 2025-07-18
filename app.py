@@ -75,11 +75,55 @@ LAST_MESSAGE_IDS_FILE = "last_message_ids.json"  # File to store last message ID
 SOURCES_FILE = "sources.json"  # File to store news sources
 
 app = Flask(__name__)
-# CORS(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# Global dictionary to store progress data for different requests
-channel_progress_data = {}
+# Simple progress tracking system
+progress_data = {}
+
+def update_progress(request_id: str, percentage: float, current_task: str, is_complete: bool = False, error: str = None):
+    """Update progress for a specific request"""
+    if not request_id:
+        return
+    
+    progress_data[request_id] = {
+        'percentage': max(0, min(100, percentage)),  # Clamp between 0-100
+        'currentTask': current_task,
+        'isComplete': is_complete,
+        'error': error,
+        'timestamp': time.time()
+    }
+    
+    logger.info(f"Progress update [{request_id}]: {percentage:.1f}% - {current_task}")
+
+def cleanup_old_progress():
+    """Remove progress data older than 10 minutes"""
+    current_time = time.time()
+    expired_keys = []
+    
+    for request_id, data in progress_data.items():
+        if current_time - data.get('timestamp', 0) > 600:  # 10 minutes
+            expired_keys.append(request_id)
+    
+    for key in expired_keys:
+        del progress_data[key]
+        logger.info(f"Cleaned up old progress data for request: {key}")
+
+@app.route('/progress/<request_id>', methods=['GET'])
+def get_progress(request_id: str):
+    """Get progress for a specific request"""
+    # Clean up old progress data
+    cleanup_old_progress()
+    
+    # Return progress data or default
+    if request_id in progress_data:
+        return jsonify(progress_data[request_id])
+    else:
+        return jsonify({
+            'percentage': 0,
+            'currentTask': 'Initializing...',
+            'isComplete': False,
+            'error': None
+        })
 
 
 def create_cors_response(data, status_code=200):
@@ -213,6 +257,7 @@ def format_log_data(data):
 
 
 @app.route('/summaries', methods=['GET'])
+@require_subscription
 async def get_summaries():
     """
     API endpoint to generate summaries based on time period and sources.
@@ -251,6 +296,10 @@ async def get_summaries():
     sources = [s.strip() for s in sources_str.split(',')] if sources_str else None
     
     logger.info(f"REQUEST [{request_id}] - Parameters: period={period}, sources={sources}")
+    
+    # Initialize progress tracking
+    if request_id != 'unknown':
+        update_progress(request_id, 0, "Starting summary generation...")
     
     # Send Telegram notification
     try:
@@ -387,6 +436,10 @@ async def get_summaries():
             if no_data_sources:
                 logger.info(f"REQUEST [{request_id}] - Found {len(no_data_sources)} sources with no messages. Fetching data: {no_data_sources}")
                 
+                # Update progress for data fetching
+                if request_id != 'unknown':
+                    update_progress(request_id, 10, f"Fetching messages from {len(no_data_sources)} sources...")
+                
                 try:
                     # Fetch messages for these sources
                     fetched_data = await fetch_telegram_messages(no_data_sources, time_range=period)
@@ -402,15 +455,26 @@ async def get_summaries():
         
         # Generate summaries with direct await
         logger.info(f"PROCESS [{request_id}] - Calling main with period={period}, sources={sources}")
+        
+        # Update progress before starting summarization
+        if request_id != 'unknown':
+            update_progress(request_id, 20, "Analyzing and summarizing messages...")
+        
         # Use main from data_summarizer which includes all enhancements
         summaries = await summarizer_main(period, sources, include_insights=False)
         
         if not summaries:
             logger.warning(f"PROCESS [{request_id}] - No summaries generated")
+            if request_id != 'unknown':
+                update_progress(request_id, 100, "No summaries generated", is_complete=True)
             return create_cors_response({"topics": []})
         
         # Log detailed result information
         logger.info(f"RESPONSE [{request_id}] - Generated {len(summaries)} topics")
+        
+        # Update progress to completion
+        if request_id != 'unknown':
+            update_progress(request_id, 100, f"Generated {len(summaries)} topics successfully", is_complete=True)
         
         # Create and log the response
         response_data = {"topics": summaries}
@@ -429,9 +493,14 @@ async def get_summaries():
         logger.error(f"ERROR [{request_id}] - Failed to process summaries request: {error_details['error_type']}: {error_details['error_message']}")
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
+        # Update progress to show error
+        if request_id != 'unknown':
+            update_progress(request_id, 0, f"Error: {str(e)}", is_complete=True, error=str(e))
+        
         return create_cors_response({"error": str(e)}, 500)
 
 @app.route('/insights', methods=['POST'])
+@require_subscription
 async def get_insights():
     """
     API endpoint to generate actionable insights based on provided summaries.
@@ -1190,121 +1259,6 @@ async def upload_telegram_export():
             "error": str(e)
         }, 500)
 
-@app.route('/channel-progress', methods=['GET'])
-def get_channel_progress():
-    """
-    API endpoint to stream progress updates using Server-Sent Events (SSE).
-    
-    Query Parameters:
-    - requestId: A unique identifier for the request to track progress
-    
-    Response:
-    A stream of Server-Sent Events with progress updates
-    """
-    request_id = request.args.get('requestId', 'default')
-    
-    # # Immediately log the connection request
-    # logger.info(f"Channel progress SSE connection started for request ID: {request_id}")
-    
-    # # Check if request_id exists in progress data
-    # if request_id in channel_progress_data:
-    #     logger.info(f"Found existing progress data for request_id: {request_id}: {channel_progress_data[request_id]}")
-    # else:
-    #     logger.warning(f"No progress data found for request_id: {request_id}")
-    
-    def generate():
-        prev_data = None
-        error_count = 0
-        max_errors = 5
-        connection_id = datetime.now().strftime('%Y%m%d%H%M%S') + str(id(request))
-        
-        # logger.info(f"SSE stream generator started for [{request_id}] with connection_id: {connection_id}")
-        
-        # Immediately send a connection established event
-        yield f"event: connected\ndata: {json.dumps({'connected': True, 'connection_id': connection_id})}\n\n"
-        
-        # Send initial data if available
-        if request_id in channel_progress_data:
-            initial_data = channel_progress_data[request_id]
-            # logger.info(f"SSE [{connection_id}] - Sending initial progress data for {request_id}: {initial_data}")
-            yield f"data: {json.dumps(initial_data)}\n\n"
-            prev_data = initial_data.copy()
-        else:
-            # Send default initial data
-            initial_data = {
-                "processedChannels": 0,
-                "totalChannels": 0,
-                "currentChannel": "Initializing..."
-            }
-            # logger.info(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data, sending default initial data")
-            yield f"data: {json.dumps(initial_data)}\n\n"
-            prev_data = initial_data.copy()
-        
-        # Keep the connection open and send updates
-        try:
-            update_count = 0  # Track how many updates we've sent
-            start_time = time.time()
-            
-            while True:
-                try:
-                    if request_id in channel_progress_data:
-                        current_data = channel_progress_data[request_id]
-                        
-                        # Only send updates when data changes
-                        if current_data != prev_data:
-                            update_count += 1
-                            # logger.info(f"SSE [{connection_id}] - Sending update #{update_count} for {request_id}: {current_data}")
-                            yield f"data: {json.dumps(current_data)}\n\n"
-                            prev_data = current_data.copy()
-                            error_count = 0  # Reset error count on successful update
-                        
-                        # If processing is complete, break the loop
-                        if current_data.get("error") or (
-                            current_data.get('processedChannels', 0) >= current_data.get('totalChannels', 0) and 
-                            current_data.get('totalChannels', 0) > 0 and
-                            ("complete" in str(current_data.get('currentChannel', '')).lower() or
-                             "finalizing" in str(current_data.get('currentChannel', '')).lower())
-                        ):
-                            # logger.info(f"SSE [{connection_id}] - Progress tracking complete for {request_id}")
-                            # Send one final update to ensure client gets it
-                            yield f"data: {json.dumps(current_data)}\n\n"
-                            yield f"event: complete\ndata: {json.dumps({'complete': True})}\n\n"
-                            break
-                    else:
-                        error_count += 1
-                        if error_count >= max_errors:
-                            # logger.warning(f"SSE [{connection_id}] - Request ID {request_id} not found in progress data after {max_errors} attempts")
-                            yield f"event: error\ndata: {json.dumps({'error': 'Request ID not found'})}\n\n"
-                            break
-                except Exception as e:
-                    # logger.error(f"SSE [{connection_id}] - Error generating SSE for {request_id}: {str(e)}")
-
-
-                    error_count += 1
-                    if error_count >= max_errors:
-                        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-                        break
-                
-                # Send occasional keepalive comments to prevent connection timeouts
-                if (time.time() - start_time) % 15 < 0.5:  # Every ~15 seconds
-                    # logger.debug(f"SSE [{connection_id}] - Sending keepalive for {request_id}")
-                    yield f": keepalive {int(time.time())}\n\n"
-                
-                # Wait before checking again
-                time.sleep(0.5)
-        except GeneratorExit:
-            # logger.info(f"SSE [{connection_id}] - Connection closed for {request_id}")
-            pass
-        finally:
-            # logger.info(f"SSE [{connection_id}] - Progress tracking ended for {request_id} after {update_count} updates")
-            pass
-    
-    response = Response(stream_with_context(generate()), mimetype="text/event-stream")
-    response.headers['Cache-Control'] = 'no-cache'
-    response.headers['X-Accel-Buffering'] = 'no'  # Disable buffering for Nginx
-    # logger.info(f"Progress tracking response created for {request_id}")
-    return response
-
 @app.route('/cluster-channels', methods=['POST'])
 async def cluster_channels():
     """
@@ -1394,29 +1348,29 @@ async def cluster_channels():
         
         # Initialize clustering progress tracking with explicit request_id
         # logger.info(f"Initializing progress tracking for request_id: {request_id}")
-        channel_progress_data[request_id] = {
-            "processedChannels": 0,
-            "totalChannels": total_channels,
-            "currentChannel": "Starting analysis..."
-        }
-        logger.info(f"Progress data initialized for request_id: {request_id}: {channel_progress_data[request_id]}")
+        # channel_progress_data[request_id] = {
+        #     "processedChannels": 0,
+        #     "totalChannels": total_channels,
+        #     "currentChannel": "Starting analysis..."
+        # }
+        # logger.info(f"Progress data initialized for request_id: {request_id}: {channel_progress_data[request_id]}")
         
         # Print a list of all request IDs currently in the progress data
-        logger.info(f"All request IDs in progress data: {list(channel_progress_data.keys())}")
+        # logger.info(f"All request IDs in progress data: {list(channel_progress_data.keys())}")
         
         for i, channel in enumerate(channels):
             channel_id = str(channel.get('id', ''))
             channel_name = channel.get('name', f"Channel {channel_id}")
             
             # Update progress with current channel name and count before processing
-            channel_progress_data[request_id] = {
-                "processedChannels": i,
-                "totalChannels": total_channels,
-                "currentChannel": f"Analyzing {channel_name}"
-            }
+            # channel_progress_data[request_id] = {
+            #     "processedChannels": i,
+            #     "totalChannels": total_channels,
+            #     "currentChannel": f"Analyzing {channel_name}"
+            # }
             # Log to confirm progress update is being set
-            logger.info(f"Progress update [{request_id}]: {i+1}/{total_channels} - Analyzing {channel_name}")
-            logger.debug(f"Progress data updated: {channel_progress_data[request_id]}")
+            # logger.info(f"Progress update [{request_id}]: {i+1}/{total_channels} - Analyzing {channel_name}")
+            # logger.debug(f"Progress data updated: {channel_progress_data[request_id]}")
             
             # For numeric IDs (from JSON exports), create special format
             if channel_id.isdigit() or (channel_id.startswith('-') and channel_id[1:].isdigit()):
@@ -1485,27 +1439,27 @@ async def cluster_channels():
             enhanced_channels.append(enhanced_channel)
             
             # Update progress after processing this channel
-            channel_progress_data[request_id] = {
-                "processedChannels": i + 1,
-                "totalChannels": total_channels,
-                "currentChannel": f"Completed {channel_name}"
-            }
+            # channel_progress_data[request_id] = {
+            #     "processedChannels": i + 1,
+            #     "totalChannels": total_channels,
+            #     "currentChannel": f"Completed {channel_name}"
+            # }
             # Force a flush to ensure the update is picked up
-            logger.info(f"Progress update [{request_id}]: {i+1}/{total_channels} - Completed {channel_name}")
-            logger.debug(f"Progress data after completion: {channel_progress_data[request_id]}")
+            # logger.info(f"Progress update [{request_id}]: {i+1}/{total_channels} - Completed {channel_name}")
+            # logger.debug(f"Progress data after completion: {channel_progress_data[request_id]}")
             
             # Ensure this progress update is sent to clients by forcing a flush
             sys.stdout.flush()
             await asyncio.sleep(0.1)  # Small delay to allow events to propagate
         
         # Update progress to show we're now clustering the channels
-        channel_progress_data[request_id] = {
-            "processedChannels": total_channels,
-            "totalChannels": total_channels,
-            "currentChannel": "Clustering channels..."
-        }
-        logger.info(f"Progress update [{request_id}]: Clustering channels...")
-        logger.debug(f"Progress data for clustering: {channel_progress_data[request_id]}")
+        # channel_progress_data[request_id] = {
+        #     "processedChannels": total_channels,
+        #     "totalChannels": total_channels,
+        #     "currentChannel": "Clustering channels..."
+        # }
+        # logger.info(f"Progress update [{request_id}]: Clustering channels...")
+        # logger.debug(f"Progress data for clustering: {channel_progress_data[request_id]}")
         
         # Force flush again
         sys.stdout.flush()
@@ -1549,14 +1503,14 @@ async def cluster_channels():
         logger.debug(f"Prompt: {prompt}")
         
         # Update progress to show we're now waiting for AI response
-        if request_id != 'unknown':
-            channel_progress_data[request_id] = {
-                "processedChannels": total_channels,
-                "totalChannels": total_channels,
-                "currentChannel": "Generating clusters with AI..."
-            }
-            logger.info(f"Progress update [{request_id}]: Generating clusters with AI...")
-            logger.debug(f"Progress data for AI generation: {channel_progress_data[request_id]}")
+        # if request_id != 'unknown':
+        #     channel_progress_data[request_id] = {
+        #         "processedChannels": total_channels,
+        #         "totalChannels": total_channels,
+        #         "currentChannel": "Generating clusters with AI..."
+        #     }
+        #     logger.info(f"Progress update [{request_id}]: Generating clusters with AI...")
+        #     logger.debug(f"Progress data for AI generation: {channel_progress_data[request_id]}")
         
         # Call Gemini API
         response = await client.aio.models.generate_content(
@@ -1569,14 +1523,14 @@ async def cluster_channels():
         logger.debug(f"Gemini response: {response_text}")
         
         # Update progress to show we're now parsing response
-        if request_id != 'unknown':
-            channel_progress_data[request_id] = {
-                "processedChannels": total_channels,
-                "totalChannels": total_channels,
-                "currentChannel": "Processing AI response..."
-            }
-            logger.info(f"Progress update [{request_id}]: Processing AI response...")
-            logger.debug(f"Progress data for processing response: {channel_progress_data[request_id]}")
+        # if request_id != 'unknown':
+        #     channel_progress_data[request_id] = {
+        #         "processedChannels": total_channels,
+        #         "totalChannels": total_channels,
+        #         "currentChannel": "Processing AI response..."
+        #     }
+        #     logger.info(f"Progress update [{request_id}]: Processing AI response...")
+        #     logger.debug(f"Progress data for processing response: {channel_progress_data[request_id]}")
         
         # Parse the JSON
         try:
@@ -1619,23 +1573,23 @@ async def cluster_channels():
                 })
             
             # Update progress to show completion
-            if request_id != 'unknown':
-                channel_progress_data[request_id] = {
-                    "processedChannels": total_channels,
-                    "totalChannels": total_channels,
-                    "currentChannel": "Clustering complete!"
-                }
-                logger.info(f"Progress update [{request_id}]: Clustering complete!")
-                logger.debug(f"Final progress data: {channel_progress_data[request_id]}")
+            # if request_id != 'unknown':
+            #     channel_progress_data[request_id] = {
+            #         "processedChannels": total_channels,
+            #         "totalChannels": total_channels,
+            #         "currentChannel": "Clustering complete!"
+            #     }
+            #     logger.info(f"Progress update [{request_id}]: Clustering complete!")
+            #     logger.debug(f"Final progress data: {channel_progress_data[request_id]}")
                 
                 # Schedule cleanup of progress data
-                def cleanup_progress():
-                    if request_id in channel_progress_data:
-                        logger.info(f"Cleaning up progress data for request_id: {request_id}")
-                        del channel_progress_data[request_id]
+                # def cleanup_progress():
+                #     if request_id in channel_progress_data:
+                #         logger.info(f"Cleaning up progress data for request_id: {request_id}")
+                #         del channel_progress_data[request_id]
                     
                 # Schedule cleanup after 5 minutes
-                threading.Timer(300, cleanup_progress).start()
+                # threading.Timer(300, cleanup_progress).start()
             
             logger.info(f"RESPONSE [{request_id}] - Clustered channels into {len(topics_result)} topics")
 
@@ -1651,14 +1605,14 @@ async def cluster_channels():
             logger.error(f"Raw response: {response_text}")
             
             # Update progress to show error
-            if request_id != 'unknown':
-                channel_progress_data[request_id] = {
-                    "processedChannels": total_channels,
-                    "totalChannels": total_channels,
-                    "currentChannel": f"Error: Failed to parse AI response",
-                    "error": f"Failed to parse AI response: {str(e)}"
-                }
-                logger.info(f"Progress update [{request_id}]: Error - Failed to parse AI response")
+            # if request_id != 'unknown':
+            #     channel_progress_data[request_id] = {
+            #         "processedChannels": total_channels,
+            #         "totalChannels": total_channels,
+            #         "currentChannel": f"Error: Failed to parse AI response",
+            #         "error": f"Failed to parse AI response: {str(e)}"
+            #     }
+            #     logger.info(f"Progress update [{request_id}]: Error - Failed to parse AI response")
                 
             return create_cors_response({
                 "success": False,
@@ -1677,14 +1631,14 @@ async def cluster_channels():
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
         # Update progress data to indicate error
-        if request_id != 'unknown':
-            channel_progress_data[request_id] = {
-                "processedChannels": total_channels if 'total_channels' in locals() else 0,
-                "totalChannels": total_channels if 'total_channels' in locals() else 0,
-                "currentChannel": f"Error: {str(e)}",
-                "error": str(e)
-            }
-            logger.info(f"Progress update [{request_id}]: Error - {str(e)}")
+        # if request_id != 'unknown':
+        #     channel_progress_data[request_id] = {
+        #         "processedChannels": total_channels if 'total_channels' in locals() else 0,
+        #         "totalChannels": total_channels if 'total_channels' in locals() else 0,
+        #         "currentChannel": f"Error: {str(e)}",
+        #         "error": str(e)
+        #     }
+        #     logger.info(f"Progress update [{request_id}]: Error - {str(e)}")
         
         return create_cors_response({
             "success": False,
@@ -1764,11 +1718,7 @@ async def save_telegram_channels():
         logger.info(f"REQUEST [{request_id}] - Saving {len(channels)} Telegram channels")
         
         # Initialize progress tracking
-        channel_progress_data[request_id] = {
-            "processedChannels": 0,
-            "totalChannels": len(channels),
-            "currentChannel": "Preparing to fetch messages..."
-        }
+        update_progress(request_id, 0, "Preparing to fetch messages...")
         
         # First save the channels to the sources table
         saved_channels = 0
@@ -1800,11 +1750,7 @@ async def save_telegram_channels():
             conn.commit()
 
         # Update progress to indicate we're starting to fetch messages
-        channel_progress_data[request_id] = {
-            "processedChannels": 0,
-            "totalChannels": len(channels),
-            "currentChannel": "Starting to fetch messages from channels..."
-        }
+        update_progress(request_id, 20, "Starting to fetch messages from channels...")
         
         # Now fetch messages from these channels
         from data_fetcher import fetch_telegram_messages
@@ -1828,42 +1774,34 @@ async def save_telegram_channels():
             else:
                 message = "Processing messages..."
             
-            update_channel_progress(request_id, processed, total, message)
+            update_progress(request_id, (processed / total) * 100, message)
         
         # Fetch messages with progress tracking
         fetched_data = await fetch_telegram_messages(
             channel_urls, 
             time_range=period,
             request_id=request_id,
-            progress_callback=message_fetch_progress_callback
+            progress_callback=message_fetch_progress_callback # Pass the new callback
         )
         
         # Count new messages
         new_messages_count = sum(len(message_ids) for message_ids in fetched_data.values())
         
         # Update progress to show we're now finalizing
-        channel_progress_data[request_id] = {
-            "processedChannels": len(channels),
-            "totalChannels": len(channels),
-            "currentChannel": "Finalizing..."
-        }
+        update_progress(request_id, 80, "Finalizing...")
         
         logger.info(f"RESPONSE [{request_id}] - Saved {saved_channels} channels and fetched {new_messages_count} messages")
         
         # Complete the progress tracking
-        channel_progress_data[request_id] = {
-            "processedChannels": len(channels),
-            "totalChannels": len(channels),
-            "currentChannel": "Complete! Imported messages from all channels."
-        }
+        update_progress(request_id, 100, f"Complete! Imported {new_messages_count} messages from {saved_channels} channels", is_complete=True)
         
         # Schedule cleanup of progress data
-        def cleanup_progress():
-            if request_id in channel_progress_data:
-                del channel_progress_data[request_id]
+        # def cleanup_progress():
+        #     if request_id in channel_progress_data:
+        #         del channel_progress_data[request_id]
                 
         # Schedule cleanup after 5 minutes
-        threading.Timer(300, cleanup_progress).start()
+        # threading.Timer(300, cleanup_progress).start()
         
         return create_cors_response({
             "success": True,
@@ -1884,83 +1822,149 @@ async def save_telegram_channels():
         logger.error(f"ERROR [{request_id}] - Traceback: {error_details['traceback']}")
         
         # Update progress data to indicate error
-        if request_id in channel_progress_data:
-            channel_progress_data[request_id]['error'] = str(e)
-            channel_progress_data[request_id]['currentChannel'] = f"Error: {str(e)}"
+        update_progress(request_id, 0, f"Error: {str(e)}", is_complete=True, error=str(e))
         
         return create_cors_response({
             "success": False,
             "error": str(e)
         }, 500)
 
-def update_channel_progress(request_id, processed_channels, total_channels, current_channel):
-    """
-    Update the progress data for a specific request.
-    Only send meaningful updates to avoid overwhelming the UI with status messages.
-    
-    Args:
-        request_id: The unique identifier for the request
-        processed_channels: Number of channels processed so far
-        total_channels: Total number of channels to process
-        current_channel: Name of the channel currently being processed
-    """
-    if not request_id:
-        logger.warning("No request_id provided to update_channel_progress")
-        return
+# TON Payment Routes
+@app.route('/payment/create', methods=['POST'])
+async def create_payment():
+    """Create a new payment request"""
+    try:
+        from payment_processor import payment_processor
         
-    if request_id not in channel_progress_data:
-        logger.warning(f"Request ID {request_id} not found in channel_progress_data. Creating new entry.")
-        channel_progress_data[request_id] = {
-            "processedChannels": 0,
-            "totalChannels": 0,
-            "currentChannel": "Initializing..."
-        }
-    
-    # Get current state to check if this update should be processed
-    current_state = channel_progress_data[request_id]
-    
-    # Only update if one of these conditions is met:
-    # 1. This is a "completed channel" update (processed count changed)
-    # 2. This is a significant phase change (clustering, finalizing, etc.)
-    # 3. This is an initialization, first, or final update
-    significant_update = (
-        # Count change indicates channel completion
-        processed_channels != current_state.get("processedChannels") or
-        # Total count initialized or changed
-        total_channels != current_state.get("totalChannels") or
-        # Phase change (clustering, finalizing, etc.)
-        (current_channel and any(keyword in current_channel.lower() for keyword in 
-                              ["clustering", "finalizing", "complete", "generating", "ai", "error"])) or
-        # First or last item
-        processed_channels == 0 or processed_channels == total_channels
-    )
-    
-    if not significant_update and 'Fetching messages from:' not in (current_channel or ''):
-        logger.debug(f"Skipping non-significant update for {request_id}: {processed_channels}/{total_channels} - {current_channel}")
-        return
+        user_ip = request.remote_addr
+        headers = dict(request.headers)
         
-    # Format the channel name to be more readable if it's too long
-    display_channel = current_channel or "No channel specified"
-    if display_channel and len(display_channel) > 30:
-        display_channel = display_channel[:27] + '...'
+        data = request.get_json()
+        if not data:
+            return create_cors_response({"error": "No JSON data provided"}, 400)
         
-    # Add status prefix to make it clear what's happening
-    if processed_channels < total_channels:
-        status_prefix = f"Processing {processed_channels+1}/{total_channels}: "
-    else:
-        status_prefix = "Completed: "
+        telegram_user_id = data.get('telegram_user_id')
+        telegram_username = data.get('telegram_username', '')
+        subscription_tier = data.get('subscription_tier', 'basic')
         
-    channel_progress_data[request_id] = {
-        "processedChannels": processed_channels,
-        "totalChannels": total_channels,
-        "currentChannel": status_prefix + display_channel
-    }
+        if not telegram_user_id:
+            return create_cors_response({"error": "telegram_user_id is required"}, 400)
+        
+        logger.info(f"Payment creation request from user {telegram_user_id}, IP: {user_ip}")
+        
+        # Create payment request
+        payment_info = payment_processor.create_payment_request(
+            telegram_user_id=telegram_user_id,
+            telegram_username=telegram_username,
+            subscription_tier=subscription_tier
+        )
+        
+        return create_cors_response(payment_info, 200)
+        
+    except Exception as e:
+        logger.error(f"Error creating payment: {e}")
+        return create_cors_response({"error": str(e)}, 500)
+
+@app.route('/payment/status/<payment_id>', methods=['GET'])
+async def get_payment_status(payment_id):
+    """Get payment status and verify on blockchain"""
+    try:
+        from payment_processor import payment_processor
+        
+        logger.info(f"Payment status check for payment {payment_id}")
+        
+        # Check payment status in database
+        payment_info = payment_processor.check_payment_status(payment_id)
+        
+        if payment_info.get('status') == 'pending':
+            # Try to verify payment on blockchain
+            verified = payment_processor.verify_payment_on_blockchain(payment_id)
+            if verified:
+                # Re-check status after verification
+                payment_info = payment_processor.check_payment_status(payment_id)
+        
+        return create_cors_response(payment_info, 200)
+        
+    except Exception as e:
+        logger.error(f"Error checking payment status: {e}")
+        return create_cors_response({"error": str(e)}, 500)
+
+@app.route('/subscription/status', methods=['POST'])
+async def get_subscription_status():
+    """Check user subscription status"""
+    try:
+        from payment_processor import payment_processor
+        
+        data = request.get_json()
+        if not data:
+            return create_cors_response({"error": "No JSON data provided"}, 400)
+        
+        telegram_user_id = data.get('telegram_user_id')
+        if not telegram_user_id:
+            return create_cors_response({"error": "telegram_user_id is required"}, 400)
+        
+        logger.info(f"Subscription status check for user {telegram_user_id}")
+        
+        # Check subscription status
+        subscription_info = payment_processor.check_user_subscription(telegram_user_id)
+        
+        return create_cors_response(subscription_info, 200)
+        
+    except Exception as e:
+        logger.error(f"Error checking subscription status: {e}")
+        return create_cors_response({"error": str(e)}, 500)
+
+# Middleware to check subscription for protected routes
+def require_subscription(f):
+    """Decorator to require active subscription for route access"""
+    @wraps(f)
+    async def decorated_function(*args, **kwargs):
+        try:
+            from payment_processor import payment_processor
+            
+            # Try to get telegram user ID from request
+            telegram_user_id = None
+            
+            # Check headers first (for frontend requests)
+            if 'X-Telegram-User-ID' in request.headers:
+                telegram_user_id = request.headers.get('X-Telegram-User-ID')
+            
+            # Check if it's a POST request with JSON data
+            elif request.method == 'POST' and request.is_json:
+                data = request.get_json()
+                telegram_user_id = data.get('telegram_user_id')
+            
+            # Check if it's a GET request with query parameter
+            elif request.method == 'GET':
+                telegram_user_id = request.args.get('telegram_user_id')
+            
+            if not telegram_user_id:
+                return create_cors_response({
+                    "error": "Authentication required. Please ensure you're logged in through Telegram.",
+                    "requires_subscription": True
+                }, 401)
+            
+            # Check subscription status
+            subscription_info = payment_processor.check_user_subscription(telegram_user_id)
+            
+            if not subscription_info.get('has_subscription'):
+                return create_cors_response({
+                    "error": "Active subscription required. Please subscribe to access this feature.",
+                    "requires_subscription": True,
+                    "subscription_expired": subscription_info.get('expired', False)
+                }, 402)  # 402 Payment Required
+            
+            # Subscription is active, proceed with original function
+            return await f(*args, **kwargs)
+            
+        except Exception as e:
+            logger.error(f"Error in subscription check: {e}")
+            return create_cors_response({
+                "error": "Subscription verification failed. Please try again.",
+                "requires_subscription": True
+            }, 500)
     
-    # Log progress update
-    logger.info(f"Progress update [{request_id}]: {processed_channels}/{total_channels} - {status_prefix}{display_channel}")
-    
-    # Log the current state of channel_progress_data for this request 
-    logger.debug(f"channel_progress_data[{request_id}] = {channel_progress_data[request_id]}")
+    return decorated_function
 
 if __name__ == '__main__':
     logger.info("Application starting up")
