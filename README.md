@@ -11,6 +11,8 @@ Uniflux transforms information overload into actionable intelligence by:
 - **Monetizing** through TON cryptocurrency subscriptions (work in progress, not live)
 - **Building** a community-driven content discovery platform (work in progress, not live)
 
+![How it works](how_it_works.png)
+
 ## Features
 
 ### Core Features
